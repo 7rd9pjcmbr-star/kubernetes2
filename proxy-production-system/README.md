@@ -86,6 +86,16 @@ curl -i http://localhost:8080
 GOWORK=off go test ./...
 ```
 
+Quality gate trước release:
+
+```bash
+./scripts/quality-gate.sh
+```
+
+Checklist bàn giao:
+
+- `docs/release-checklist.md`
+
 ## 5) Deploy Kubernetes (mẫu)
 
 ```bash
