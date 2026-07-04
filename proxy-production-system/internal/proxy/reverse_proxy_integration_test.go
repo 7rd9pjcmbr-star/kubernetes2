@@ -17,9 +17,11 @@ limitations under the License.
 package proxy
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"proxy-production-system/internal/buildinfo"
 	"testing"
 )
 
@@ -119,5 +121,75 @@ func TestRoundRobinHandlerExposesMetricsEndpoint(t *testing.T) {
 	}
 	if len(body) == 0 {
 		t.Fatalf("expected non-empty metrics body")
+	}
+}
+
+func TestRoundRobinHandlerSetsSecurityHeaders(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	handler, err := NewRoundRobinHandler(
+		[]string{upstream.URL},
+		MiddlewareOptions{Metrics: NewMetrics()},
+	)
+	if err != nil {
+		t.Fatalf("failed to build handler: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	for key, expected := range map[string]string{
+		"X-Content-Type-Options":            "nosniff",
+		"X-Frame-Options":                   "DENY",
+		"Referrer-Policy":                   "no-referrer",
+		"X-Permitted-Cross-Domain-Policies": "none",
+	} {
+		if got := resp.Header().Get(key); got != expected {
+			t.Fatalf("unexpected header %s: got=%q want=%q", key, got, expected)
+		}
+	}
+}
+
+func TestRoundRobinHandlerVersionEndpointIncludesBuildInfo(t *testing.T) {
+	original := buildinfo.Get()
+	buildinfo.Version = "v9.9.9"
+	buildinfo.Commit = "abc1234"
+	buildinfo.BuildDate = "2026-07-04T00:00:00Z"
+	defer func() {
+		buildinfo.Version = original.Version
+		buildinfo.Commit = original.Commit
+		buildinfo.BuildDate = original.BuildDate
+	}()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	handler, err := NewRoundRobinHandler(
+		[]string{upstream.URL},
+		MiddlewareOptions{Metrics: NewMetrics()},
+	)
+	if err != nil {
+		t.Fatalf("failed to build handler: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/version", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got=%d want=%d", resp.Code, http.StatusOK)
+	}
+	var info buildinfo.Info
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode version response: %v", err)
+	}
+	if info.Version != "v9.9.9" || info.Commit != "abc1234" {
+		t.Fatalf("unexpected version payload: %#v", info)
 	}
 }

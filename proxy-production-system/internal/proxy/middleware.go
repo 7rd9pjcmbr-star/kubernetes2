@@ -124,8 +124,21 @@ func withRequestTimeout(timeout time.Duration, next http.Handler) http.Handler {
 	return http.TimeoutHandler(next, timeout, "request timeout")
 }
 
+func withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
+		if req.TLS != nil {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
 func isProbePath(path string) bool {
-	return path == "/healthz" || path == "/readyz" || path == "/metrics"
+	return path == "/healthz" || path == "/readyz" || path == "/metrics" || path == "/version"
 }
 
 func sourceIP(req *http.Request, trustForwarded bool) string {

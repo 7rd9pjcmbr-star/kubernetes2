@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"proxy-production-system/internal/buildinfo"
 	"proxy-production-system/internal/config"
 	"proxy-production-system/internal/observability"
 	"proxy-production-system/internal/proxy"
@@ -82,6 +83,9 @@ func main() {
 	}
 
 	slog.Info("proxy starting",
+		"version", buildinfo.Version,
+		"commit", buildinfo.Commit,
+		"build_date", buildinfo.BuildDate,
 		"listen", cfg.ListenAddress,
 		"upstreams", cfg.Upstreams,
 		"auth_enabled", cfg.AuthToken != "",

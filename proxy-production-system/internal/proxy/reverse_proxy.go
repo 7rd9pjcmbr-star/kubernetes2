@@ -17,11 +17,13 @@ limitations under the License.
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"proxy-production-system/internal/buildinfo"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -75,6 +77,13 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	})
+	mux.HandleFunc("/version", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(buildinfo.Get()); err != nil {
+			slog.Error("failed to encode version response", "error", err)
+		}
+	})
 	if options.Metrics != nil {
 		mux.Handle("/metrics", options.Metrics.Handler())
 	}
@@ -83,6 +92,7 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 	handler := withRateLimit(options, mux)
 	handler = withAuth(options.AuthToken, options.Metrics, handler)
 	handler = withRequestTimeout(options.RequestTimeout, handler)
+	handler = withSecurityHeaders(handler)
 	handler = withRequestLogging(handler, options.TrustForwarded, options.Metrics)
 	return handler, nil
 }

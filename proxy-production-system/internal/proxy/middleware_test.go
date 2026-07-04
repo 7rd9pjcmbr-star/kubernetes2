@@ -79,6 +79,20 @@ func TestWithAuthAllowsMetricsWithoutToken(t *testing.T) {
 	}
 }
 
+func TestWithAuthAllowsVersionWithoutToken(t *testing.T) {
+	handler := withAuth("secret-token", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/version", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got=%d want=%d", resp.Code, http.StatusOK)
+	}
+}
+
 func TestWithRateLimitRejectsWhenBurstExceeded(t *testing.T) {
 	opts := MiddlewareOptions{RateLimitRPS: 1, RateLimitBurst: 1, Metrics: NewMetrics()}
 	handler := withRateLimit(opts, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -5,12 +5,13 @@ Checklist này dùng trước khi bàn giao bản build cho khách hàng.
 ## 1) Code quality gate (bắt buộc pass)
 
 - [ ] `./scripts/quality-gate.sh` pass toàn bộ.
+- [ ] `./scripts/security-test.sh` pass toàn bộ.
 - [ ] Không có thay đổi chưa commit (`git status --short` rỗng).
 - [ ] PR đã có mô tả thay đổi, rủi ro, và rollback note.
 
 ## 2) Functional and resilience checks
 
-- [ ] `/healthz`, `/readyz`, `/metrics` trả về 200 trong điều kiện bình thường.
+- [ ] `/healthz`, `/readyz`, `/metrics`, `/version` trả về 200 trong điều kiện bình thường.
 - [ ] Truy cập qua Ingress hostname trả về đúng response từ proxy service.
 - [ ] Auth token hoạt động đúng (401 khi thiếu/sai token, 200 khi token đúng).
 - [ ] Rate limiting hoạt động đúng ở ngưỡng cấu hình.
@@ -37,5 +38,6 @@ Checklist này dùng trước khi bàn giao bản build cho khách hàng.
 ## 5) Delivery and rollback checks
 
 - [ ] Image tag immutable (không dùng `latest` cho production).
+- [ ] Artifact release tarball và file checksum `.sha256` đã được tạo từ `./scripts/package-release.sh <version>`.
 - [ ] Kế hoạch rollback đã kiểm tra (image/tag trước đó còn khả dụng).
 - [ ] Tài liệu vận hành đã cập nhật (env vars, alert rules, dashboard links).

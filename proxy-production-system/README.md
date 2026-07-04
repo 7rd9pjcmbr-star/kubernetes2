@@ -18,7 +18,9 @@ Scaffold dự án proxy production-ready ở mức nền tảng:
 
 ```text
 proxy-production-system/
+├── .dockerignore
 ├── cmd/proxy/main.go
+├── internal/buildinfo/buildinfo.go
 ├── internal/config/config.go
 ├── internal/observability/
 │   ├── logger.go
@@ -45,7 +47,14 @@ proxy-production-system/
 │       │   └── namespace.yaml
 │       ├── service.yaml
 │       └── servicemonitor.yaml
-└── .env.example
+├── docs/
+│   ├── release-checklist.md
+│   └── release-standard.md
+└── scripts/
+    ├── install-nginx-ingress-controller.sh
+    ├── package-release.sh
+    ├── quality-gate.sh
+    └── security-test.sh
 ```
 
 ## 2) Chạy local
@@ -61,6 +70,7 @@ Test nhanh:
 curl -i http://localhost:8080/healthz
 curl -i http://localhost:8080/readyz
 curl -s http://localhost:8080/metrics | rg proxy_requests_total
+curl -s http://localhost:8080/version
 curl -i http://localhost:8080
 ```
 
@@ -97,9 +107,28 @@ Quality gate trước release:
 ./scripts/quality-gate.sh
 ```
 
+Security test trước release:
+
+```bash
+./scripts/security-test.sh
+```
+
+Đóng gói release artifact:
+
+```bash
+./scripts/package-release.sh v1.0.0
+```
+
+Chạy full pipeline chuẩn hoá (quality + security + package):
+
+```bash
+make release-ready VERSION=v1.0.0
+```
+
 Checklist bàn giao:
 
 - `docs/release-checklist.md`
+- `docs/release-standard.md`
 
 ## 5) Deploy Kubernetes (mẫu)
 
