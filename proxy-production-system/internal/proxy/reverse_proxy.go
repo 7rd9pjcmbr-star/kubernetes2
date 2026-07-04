@@ -82,6 +82,7 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 
 	handler := withRateLimit(options, mux)
 	handler = withAuth(options.AuthToken, options.Metrics, handler)
+	handler = withRequestTimeout(options.RequestTimeout, handler)
 	handler = withRequestLogging(handler, options.TrustForwarded, options.Metrics)
 	return handler, nil
 }

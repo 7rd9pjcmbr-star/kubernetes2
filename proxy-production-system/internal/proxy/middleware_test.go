@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestWithAuthRejectsMissingToken(t *testing.T) {
@@ -100,5 +101,34 @@ func TestWithRateLimitRejectsWhenBurstExceeded(t *testing.T) {
 
 	if respTwo.Code != http.StatusTooManyRequests {
 		t.Fatalf("second request should be limited: got=%d want=%d", respTwo.Code, http.StatusTooManyRequests)
+	}
+}
+
+func TestWithRequestTimeoutReturnsServiceUnavailable(t *testing.T) {
+	handler := withRequestTimeout(10*time.Millisecond, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unexpected status code: got=%d want=%d", resp.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestWithRequestTimeoutPassesFastRequest(t *testing.T) {
+	handler := withRequestTimeout(100*time.Millisecond, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got=%d want=%d", resp.Code, http.StatusOK)
 	}
 }

@@ -74,6 +74,7 @@ curl -i http://localhost:8080
 | `PROXY_WRITE_TIMEOUT` | Không | `15s` | Write timeout cho HTTP server |
 | `PROXY_IDLE_TIMEOUT` | Không | `60s` | Idle timeout cho keep-alive |
 | `PROXY_SHUTDOWN_TIMEOUT` | Không | `20s` | Timeout cho graceful shutdown |
+| `PROXY_REQUEST_TIMEOUT` | Không | `30s` | Timeout tổng cho mỗi request proxy, quá ngưỡng sẽ trả 503 |
 | `PROXY_AUTH_TOKEN` | Không | rỗng | Nếu set, yêu cầu request gửi header `X-Proxy-Token` trùng giá trị này |
 | `PROXY_RATE_LIMIT_RPS` | Không | `0` | Số request/giây theo mỗi IP (`0` = tắt) |
 | `PROXY_RATE_LIMIT_BURST` | Không | `0` | Burst cho token bucket (`>0` khi bật RPS) |

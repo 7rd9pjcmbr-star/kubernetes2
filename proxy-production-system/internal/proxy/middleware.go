@@ -33,6 +33,7 @@ type MiddlewareOptions struct {
 	RateLimitRPS   int
 	RateLimitBurst int
 	TrustForwarded bool
+	RequestTimeout time.Duration
 	Metrics        *Metrics
 }
 
@@ -114,6 +115,13 @@ func withRateLimit(opts MiddlewareOptions, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, req)
 	})
+}
+
+func withRequestTimeout(timeout time.Duration, next http.Handler) http.Handler {
+	if timeout <= 0 {
+		return next
+	}
+	return http.TimeoutHandler(next, timeout, "request timeout")
 }
 
 func isProbePath(path string) bool {

@@ -64,6 +64,7 @@ func main() {
 		RateLimitRPS:   cfg.RateLimitRPS,
 		RateLimitBurst: cfg.RateLimitBurst,
 		TrustForwarded: cfg.TrustForwarded,
+		RequestTimeout: cfg.RequestTimeout,
 		Metrics:        metrics,
 	})
 	if err != nil {
@@ -87,6 +88,7 @@ func main() {
 		"rate_limit_rps", cfg.RateLimitRPS,
 		"rate_limit_burst", cfg.RateLimitBurst,
 		"trust_forwarded", cfg.TrustForwarded,
+		"request_timeout", cfg.RequestTimeout.String(),
 		"log_format", cfg.LogFormat,
 		"service_name", cfg.ServiceName,
 		"trace_endpoint", cfg.TraceEndpoint,

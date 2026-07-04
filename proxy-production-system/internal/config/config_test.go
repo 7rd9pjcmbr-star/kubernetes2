@@ -19,6 +19,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestLoadFromEnvWithTracingAndLogging(t *testing.T) {
@@ -33,6 +34,7 @@ func TestLoadFromEnvWithTracingAndLogging(t *testing.T) {
 		"PROXY_RATE_LIMIT_BURST":    "200",
 		"PROXY_TRUST_FORWARDED":     "true",
 		"PROXY_SHUTDOWN_TIMEOUT":    "10s",
+		"PROXY_REQUEST_TIMEOUT":     "3s",
 		"PROXY_READ_TIMEOUT":        "5s",
 		"PROXY_WRITE_TIMEOUT":       "5s",
 		"PROXY_IDLE_TIMEOUT":        "30s",
@@ -59,6 +61,9 @@ func TestLoadFromEnvWithTracingAndLogging(t *testing.T) {
 	}
 	if cfg.TraceSample != 0.4 {
 		t.Fatalf("unexpected trace sample ratio: got=%v want=0.4", cfg.TraceSample)
+	}
+	if cfg.RequestTimeout != 3*time.Second {
+		t.Fatalf("unexpected request timeout: got=%v want=3s", cfg.RequestTimeout)
 	}
 }
 
@@ -101,6 +106,7 @@ func setEnvForTest(t *testing.T, values map[string]string) func() {
 		"PROXY_RATE_LIMIT_BURST",
 		"PROXY_TRUST_FORWARDED",
 		"PROXY_SHUTDOWN_TIMEOUT",
+		"PROXY_REQUEST_TIMEOUT",
 		"PROXY_READ_TIMEOUT",
 		"PROXY_WRITE_TIMEOUT",
 		"PROXY_IDLE_TIMEOUT",

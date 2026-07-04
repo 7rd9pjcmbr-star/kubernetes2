@@ -31,6 +31,7 @@ const (
 	defaultWriteTimeout   = 15 * time.Second
 	defaultIdleTimeout    = 60 * time.Second
 	defaultShutdownPeriod = 20 * time.Second
+	defaultRequestTimeout = 30 * time.Second
 	defaultServiceName    = "proxy-production-system"
 )
 
@@ -42,6 +43,7 @@ type Config struct {
 	WriteTimeout   time.Duration
 	IdleTimeout    time.Duration
 	ShutdownPeriod time.Duration
+	RequestTimeout time.Duration
 	AuthToken      string
 	RateLimitRPS   int
 	RateLimitBurst int
@@ -60,6 +62,7 @@ func LoadFromEnv() (Config, error) {
 		WriteTimeout:   getDurationEnv("PROXY_WRITE_TIMEOUT", defaultWriteTimeout),
 		IdleTimeout:    getDurationEnv("PROXY_IDLE_TIMEOUT", defaultIdleTimeout),
 		ShutdownPeriod: getDurationEnv("PROXY_SHUTDOWN_TIMEOUT", defaultShutdownPeriod),
+		RequestTimeout: getDurationEnv("PROXY_REQUEST_TIMEOUT", defaultRequestTimeout),
 		AuthToken:      strings.TrimSpace(os.Getenv("PROXY_AUTH_TOKEN")),
 		RateLimitRPS:   getIntEnv("PROXY_RATE_LIMIT_RPS", 0),
 		RateLimitBurst: getIntEnv("PROXY_RATE_LIMIT_BURST", 0),
@@ -89,7 +92,7 @@ func validate(cfg Config) error {
 			return fmt.Errorf("invalid upstream %q: URL must start with http:// or https://", upstream)
 		}
 	}
-	if cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownPeriod <= 0 {
+	if cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownPeriod <= 0 || cfg.RequestTimeout <= 0 {
 		return fmt.Errorf("timeouts must be greater than zero")
 	}
 	if cfg.RateLimitRPS < 0 || cfg.RateLimitBurst < 0 {
