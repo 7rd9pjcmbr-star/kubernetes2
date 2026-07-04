@@ -11,6 +11,7 @@ Checklist này dùng trước khi bàn giao bản build cho khách hàng.
 ## 2) Functional and resilience checks
 
 - [ ] `/healthz`, `/readyz`, `/metrics` trả về 200 trong điều kiện bình thường.
+- [ ] Truy cập qua Ingress hostname trả về đúng response từ proxy service.
 - [ ] Auth token hoạt động đúng (401 khi thiếu/sai token, 200 khi token đúng).
 - [ ] Rate limiting hoạt động đúng ở ngưỡng cấu hình.
 - [ ] Graceful shutdown không cắt request đang xử lý (test trong rollout hoặc test môi trường staging).
@@ -30,6 +31,7 @@ Checklist này dùng trước khi bàn giao bản build cho khách hàng.
 
 - [ ] Không hardcode secret vào source/configmap (`PROXY_AUTH_TOKEN` phải lấy từ secret manager/K8s Secret trong môi trường thật).
 - [ ] `PROXY_TRUST_FORWARDED=true` chỉ bật khi nằm sau LB/proxy tin cậy.
+- [ ] Ingress hostname có TLS certificate hợp lệ trong môi trường production.
 - [ ] Policy network, TLS/mTLS, và ACL upstream đúng với kiến trúc khách hàng.
 
 ## 5) Delivery and rollback checks

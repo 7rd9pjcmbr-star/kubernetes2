@@ -39,6 +39,10 @@ proxy-production-system/
 │       ├── configmap.yaml
 │       ├── deployment.yaml
 │       ├── hpa.yaml
+│       ├── ingress-class.yaml
+│       ├── ingress.yaml
+│       ├── ingress-nginx/
+│       │   └── namespace.yaml
 │       ├── service.yaml
 │       └── servicemonitor.yaml
 └── .env.example
@@ -101,6 +105,25 @@ Checklist bàn giao:
 ```bash
 kubectl apply -f deployments/k8s/
 ```
+
+## 6) Bổ sung NGINX Ingress Controller
+
+Cài ingress-nginx controller (pinned version):
+
+```bash
+./scripts/install-nginx-ingress-controller.sh
+```
+
+Deploy ingress cho proxy service:
+
+```bash
+kubectl apply -f deployments/k8s/ingress.yaml
+```
+
+Ghi chú:
+- Mặc định `host` trong manifest là `proxy.example.com`, đổi theo domain thực tế.
+- Nếu dùng TLS, thêm `spec.tls` + secret chứng chỉ vào `deployments/k8s/ingress.yaml`.
+- Nếu ingress-nginx đã được cài sẵn trong cluster, chỉ cần apply `ingress-class.yaml` (nếu thiếu) và `ingress.yaml`.
 
 Nếu cluster dùng Prometheus Operator, apply thêm:
 
