@@ -72,3 +72,20 @@ kubectl apply -f deployments/k8s/
 > - Rate limiting, WAF
 > - Metrics, tracing, alerting
 > - PodDisruptionBudget và NetworkPolicy
+
+## 6) Website mô hình kinh doanh Proxy SaaS
+
+Trang landing page mẫu nằm tại `website/` để trình bày:
+
+- Giá trị sản phẩm Proxy SaaS
+- Bảng giá tham khảo theo mô hình subscription + usage
+- Khung mô hình kinh doanh (khách hàng mục tiêu, doanh thu, chi phí, GTM)
+
+Chạy nhanh bằng Python static server:
+
+```bash
+cd website
+python3 -m http.server 8081
+```
+
+Sau đó mở: `http://localhost:8081`
