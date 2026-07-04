@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: proxy-system
+  labels:
+    app: proxy-system
+spec:
+  selector:
+    matchLabels:
+      app: proxy-system
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

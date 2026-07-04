@@ -46,6 +46,7 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 			req.Host = target.Host
 		},
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
+			options.Metrics.IncUpstreamError()
 			log.Printf("proxy error method=%s path=%s err=%v", req.Method, req.URL.Path, err)
 			http.Error(w, "upstream unavailable", http.StatusBadGateway)
 		},
@@ -62,10 +63,13 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	})
+	if options.Metrics != nil {
+		mux.Handle("/metrics", options.Metrics.Handler())
+	}
 	mux.Handle("/", reverseProxy)
 
 	handler := withRateLimit(options, mux)
-	handler = withAuth(options.AuthToken, handler)
-	handler = withRequestLogging(handler, options.TrustForwarded)
+	handler = withAuth(options.AuthToken, options.Metrics, handler)
+	handler = withRequestLogging(handler, options.TrustForwarded, options.Metrics)
 	return handler, nil
 }

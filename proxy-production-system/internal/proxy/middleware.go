@@ -31,11 +31,12 @@ type MiddlewareOptions struct {
 	RateLimitRPS   int
 	RateLimitBurst int
 	TrustForwarded bool
+	Metrics        *Metrics
 }
 
 var requestSequence uint64
 
-func withRequestLogging(next http.Handler, trustForwarded bool) http.Handler {
+func withRequestLogging(next http.Handler, trustForwarded bool, metrics *Metrics) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		requestID := nextRequestID()
@@ -44,6 +45,8 @@ func withRequestLogging(next http.Handler, trustForwarded bool) http.Handler {
 		rw := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
 		rw.Header().Set("X-Request-Id", requestID)
 		next.ServeHTTP(rw, req)
+		elapsed := time.Since(start)
+		metrics.ObserveRequest(req.Method, req.URL.Path, rw.statusCode, elapsed)
 
 		log.Printf("request_id=%s client_ip=%s method=%s path=%s status=%d duration_ms=%d",
 			requestID,
@@ -51,12 +54,12 @@ func withRequestLogging(next http.Handler, trustForwarded bool) http.Handler {
 			req.Method,
 			req.URL.Path,
 			rw.statusCode,
-			time.Since(start).Milliseconds(),
+			elapsed.Milliseconds(),
 		)
 	})
 }
 
-func withAuth(token string, next http.Handler) http.Handler {
+func withAuth(token string, metrics *Metrics, next http.Handler) http.Handler {
 	trimmed := strings.TrimSpace(token)
 	if trimmed == "" {
 		return next
@@ -69,10 +72,12 @@ func withAuth(token string, next http.Handler) http.Handler {
 		}
 		provided := strings.TrimSpace(req.Header.Get("X-Proxy-Token"))
 		if provided == "" {
+			metrics.IncAuthRejection()
 			http.Error(w, "missing X-Proxy-Token header", http.StatusUnauthorized)
 			return
 		}
 		if provided != trimmed {
+			metrics.IncAuthRejection()
 			http.Error(w, "invalid X-Proxy-Token value", http.StatusUnauthorized)
 			return
 		}
@@ -93,6 +98,7 @@ func withRateLimit(opts MiddlewareOptions, next http.Handler) http.Handler {
 
 		clientIP := sourceIP(req, opts.TrustForwarded)
 		if !limiter.Allow(clientIP) {
+			opts.Metrics.IncRateLimitRejection()
 			http.Error(w, "rate limit exceeded for client IP", http.StatusTooManyRequests)
 			return
 		}
@@ -101,7 +107,7 @@ func withRateLimit(opts MiddlewareOptions, next http.Handler) http.Handler {
 }
 
 func isProbePath(path string) bool {
-	return path == "/healthz" || path == "/readyz"
+	return path == "/healthz" || path == "/readyz" || path == "/metrics"
 }
 
 func sourceIP(req *http.Request, trustForwarded bool) string {

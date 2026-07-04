@@ -23,7 +23,7 @@ import (
 )
 
 func TestWithAuthRejectsMissingToken(t *testing.T) {
-	handler := withAuth("secret-token", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := withAuth("secret-token", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -37,7 +37,7 @@ func TestWithAuthRejectsMissingToken(t *testing.T) {
 }
 
 func TestWithAuthAllowsHealthzWithoutToken(t *testing.T) {
-	handler := withAuth("secret-token", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := withAuth("secret-token", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -51,7 +51,7 @@ func TestWithAuthAllowsHealthzWithoutToken(t *testing.T) {
 }
 
 func TestWithAuthAllowsReadyzWithoutToken(t *testing.T) {
-	handler := withAuth("secret-token", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := withAuth("secret-token", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -64,8 +64,22 @@ func TestWithAuthAllowsReadyzWithoutToken(t *testing.T) {
 	}
 }
 
+func TestWithAuthAllowsMetricsWithoutToken(t *testing.T) {
+	handler := withAuth("secret-token", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got=%d want=%d", resp.Code, http.StatusOK)
+	}
+}
+
 func TestWithRateLimitRejectsWhenBurstExceeded(t *testing.T) {
-	opts := MiddlewareOptions{RateLimitRPS: 1, RateLimitBurst: 1}
+	opts := MiddlewareOptions{RateLimitRPS: 1, RateLimitBurst: 1, Metrics: NewMetrics()}
 	handler := withRateLimit(opts, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

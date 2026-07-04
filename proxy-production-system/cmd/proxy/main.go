@@ -34,11 +34,13 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
+	metrics := proxy.NewMetrics()
 	handler, err := proxy.NewRoundRobinHandler(cfg.Upstreams, proxy.MiddlewareOptions{
 		AuthToken:      cfg.AuthToken,
 		RateLimitRPS:   cfg.RateLimitRPS,
 		RateLimitBurst: cfg.RateLimitBurst,
 		TrustForwarded: cfg.TrustForwarded,
+		Metrics:        metrics,
 	})
 	if err != nil {
 		log.Fatalf("failed to build proxy handler: %v", err)

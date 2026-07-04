@@ -9,6 +9,7 @@ Scaffold dự án proxy production-ready ở mức nền tảng:
 - Optional token auth qua header `X-Proxy-Token`.
 - Optional rate limiting theo client IP.
 - Request logging có `request_id` để trace.
+- Prometheus metrics tại endpoint `/metrics`.
 - Dockerfile + docker-compose để chạy local.
 - Kubernetes manifests mẫu để deploy.
 
@@ -23,6 +24,8 @@ proxy-production-system/
 │   ├── pool_test.go
 │   ├── middleware.go
 │   ├── middleware_test.go
+│   ├── metrics.go
+│   ├── metrics_test.go
 │   ├── rate_limiter.go
 │   ├── rate_limiter_test.go
 │   └── reverse_proxy.go
@@ -32,7 +35,8 @@ proxy-production-system/
 │       ├── configmap.yaml
 │       ├── deployment.yaml
 │       ├── hpa.yaml
-│       └── service.yaml
+│       ├── service.yaml
+│       └── servicemonitor.yaml
 └── .env.example
 ```
 
@@ -48,6 +52,7 @@ Test nhanh:
 ```bash
 curl -i http://localhost:8080/healthz
 curl -i http://localhost:8080/readyz
+curl -s http://localhost:8080/metrics | rg proxy_requests_total
 curl -i http://localhost:8080
 ```
 
@@ -78,7 +83,13 @@ GOWORK=off go test ./...
 kubectl apply -f deployments/k8s/
 ```
 
+Nếu cluster dùng Prometheus Operator, apply thêm:
+
+```bash
+kubectl apply -f deployments/k8s/servicemonitor.yaml
+```
+
 > Manifest là baseline để bắt đầu. Trước khi dùng production thật, nên bổ sung:
 > - TLS termination / mTLS
-> - Metrics, tracing, alerting
+> - Tracing và alerting theo SLO
 > - PodDisruptionBudget và NetworkPolicy
