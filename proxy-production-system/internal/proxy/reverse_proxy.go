@@ -18,10 +18,14 @@ package proxy
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.Handler, error) {
@@ -44,10 +48,18 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 			req.URL.Scheme = target.Scheme
 			req.URL.Host = target.Host
 			req.Host = target.Host
+			otel.GetTextMapPropagator().Inject(req.Context(), propagation.HeaderCarrier(req.Header))
 		},
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
-			options.Metrics.IncUpstreamError()
-			log.Printf("proxy error method=%s path=%s err=%v", req.Method, req.URL.Path, err)
+			if options.Metrics != nil {
+				options.Metrics.IncUpstreamError()
+			}
+			slog.Error("proxy upstream error",
+				"method", req.Method,
+				"path", req.URL.Path,
+				"error", err,
+			)
 			http.Error(w, "upstream unavailable", http.StatusBadGateway)
 		},
 	}

@@ -18,12 +18,14 @@ package proxy
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type MiddlewareOptions struct {
@@ -47,14 +49,16 @@ func withRequestLogging(next http.Handler, trustForwarded bool, metrics *Metrics
 		next.ServeHTTP(rw, req)
 		elapsed := time.Since(start)
 		metrics.ObserveRequest(req.Method, req.URL.Path, rw.statusCode, elapsed)
+		traceID := traceIDFromContext(req)
 
-		log.Printf("request_id=%s client_ip=%s method=%s path=%s status=%d duration_ms=%d",
-			requestID,
-			clientIP,
-			req.Method,
-			req.URL.Path,
-			rw.statusCode,
-			elapsed.Milliseconds(),
+		slog.Info("http request completed",
+			"request_id", requestID,
+			"trace_id", traceID,
+			"client_ip", clientIP,
+			"method", req.Method,
+			"path", req.URL.Path,
+			"status", rw.statusCode,
+			"duration_ms", elapsed.Milliseconds(),
 		)
 	})
 }
@@ -72,12 +76,16 @@ func withAuth(token string, metrics *Metrics, next http.Handler) http.Handler {
 		}
 		provided := strings.TrimSpace(req.Header.Get("X-Proxy-Token"))
 		if provided == "" {
-			metrics.IncAuthRejection()
+			if metrics != nil {
+				metrics.IncAuthRejection()
+			}
 			http.Error(w, "missing X-Proxy-Token header", http.StatusUnauthorized)
 			return
 		}
 		if provided != trimmed {
-			metrics.IncAuthRejection()
+			if metrics != nil {
+				metrics.IncAuthRejection()
+			}
 			http.Error(w, "invalid X-Proxy-Token value", http.StatusUnauthorized)
 			return
 		}
@@ -98,7 +106,9 @@ func withRateLimit(opts MiddlewareOptions, next http.Handler) http.Handler {
 
 		clientIP := sourceIP(req, opts.TrustForwarded)
 		if !limiter.Allow(clientIP) {
-			opts.Metrics.IncRateLimitRejection()
+			if opts.Metrics != nil {
+				opts.Metrics.IncRateLimitRejection()
+			}
 			http.Error(w, "rate limit exceeded for client IP", http.StatusTooManyRequests)
 			return
 		}
@@ -133,6 +143,14 @@ func sourceIP(req *http.Request, trustForwarded bool) string {
 func nextRequestID() string {
 	seq := atomic.AddUint64(&requestSequence, 1)
 	return fmt.Sprintf("req-%d-%d", time.Now().UnixMilli(), seq)
+}
+
+func traceIDFromContext(req *http.Request) string {
+	spanContext := trace.SpanFromContext(req.Context()).SpanContext()
+	if !spanContext.IsValid() {
+		return ""
+	}
+	return spanContext.TraceID().String()
 }
 
 type statusRecorder struct {

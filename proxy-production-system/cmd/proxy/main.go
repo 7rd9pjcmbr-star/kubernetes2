@@ -18,21 +18,45 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"proxy-production-system/internal/config"
+	"proxy-production-system/internal/observability"
 	"proxy-production-system/internal/proxy"
 	"syscall"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
+		os.Exit(1)
 	}
+	observability.ConfigureLogger(cfg.LogFormat)
+
+	traceShutdown, err := observability.ConfigureTracing(context.Background(), observability.TracingConfig{
+		ServiceName: cfg.ServiceName,
+		Endpoint:    cfg.TraceEndpoint,
+		Insecure:    cfg.TraceInsecure,
+		SampleRatio: cfg.TraceSample,
+	})
+	if err != nil {
+		slog.Error("failed to initialize tracing", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := traceShutdown(shutdownCtx); err != nil {
+			slog.Error("failed to shutdown tracing provider", "error", err)
+		}
+	}()
 
 	metrics := proxy.NewMetrics()
 	handler, err := proxy.NewRoundRobinHandler(cfg.Upstreams, proxy.MiddlewareOptions{
@@ -43,8 +67,10 @@ func main() {
 		Metrics:        metrics,
 	})
 	if err != nil {
-		log.Fatalf("failed to build proxy handler: %v", err)
+		slog.Error("failed to build proxy handler", "error", err)
+		os.Exit(1)
 	}
+	handler = otelhttp.NewHandler(handler, "proxy-http-server")
 
 	server := &http.Server{
 		Addr:         cfg.ListenAddress,
@@ -54,30 +80,35 @@ func main() {
 		IdleTimeout:  cfg.IdleTimeout,
 	}
 
-	log.Printf(
-		"proxy starting listen=%s upstreams=%v auth_enabled=%t rate_limit_rps=%d rate_limit_burst=%d trust_forwarded=%t",
-		cfg.ListenAddress,
-		cfg.Upstreams,
-		cfg.AuthToken != "",
-		cfg.RateLimitRPS,
-		cfg.RateLimitBurst,
-		cfg.TrustForwarded,
+	slog.Info("proxy starting",
+		"listen", cfg.ListenAddress,
+		"upstreams", cfg.Upstreams,
+		"auth_enabled", cfg.AuthToken != "",
+		"rate_limit_rps", cfg.RateLimitRPS,
+		"rate_limit_burst", cfg.RateLimitBurst,
+		"trust_forwarded", cfg.TrustForwarded,
+		"log_format", cfg.LogFormat,
+		"service_name", cfg.ServiceName,
+		"trace_endpoint", cfg.TraceEndpoint,
+		"trace_sample_ratio", cfg.TraceSample,
 	)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("proxy server failed: %v", err)
+			slog.Error("proxy server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	waitForSignal()
-	log.Printf("shutdown requested")
+	slog.Info("shutdown requested")
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownPeriod)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("graceful shutdown failed: %v", err)
+		slog.Error("graceful shutdown failed", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("proxy stopped cleanly")
+	slog.Info("proxy stopped cleanly")
 }
 
 func waitForSignal() {

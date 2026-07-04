@@ -8,8 +8,9 @@ Scaffold dự án proxy production-ready ở mức nền tảng:
 - Runtime config bằng environment variables.
 - Optional token auth qua header `X-Proxy-Token`.
 - Optional rate limiting theo client IP.
-- Request logging có `request_id` để trace.
+- Structured logging (JSON/text) có `request_id` và `trace_id`.
 - Prometheus metrics tại endpoint `/metrics`.
+- OpenTelemetry tracing (OTLP gRPC exporter).
 - Dockerfile + docker-compose để chạy local.
 - Kubernetes manifests mẫu để deploy.
 
@@ -19,6 +20,9 @@ Scaffold dự án proxy production-ready ở mức nền tảng:
 proxy-production-system/
 ├── cmd/proxy/main.go
 ├── internal/config/config.go
+├── internal/observability/
+│   ├── logger.go
+│   └── tracing.go
 ├── internal/proxy/
 │   ├── pool.go
 │   ├── pool_test.go
@@ -70,6 +74,11 @@ curl -i http://localhost:8080
 | `PROXY_RATE_LIMIT_RPS` | Không | `0` | Số request/giây theo mỗi IP (`0` = tắt) |
 | `PROXY_RATE_LIMIT_BURST` | Không | `0` | Burst cho token bucket (`>0` khi bật RPS) |
 | `PROXY_TRUST_FORWARDED` | Không | `false` | Tin `X-Forwarded-For`/`X-Real-Ip` khi đứng sau LB/reverse proxy |
+| `PROXY_LOG_FORMAT` | Không | `json` | Định dạng log: `json` hoặc `text` |
+| `PROXY_SERVICE_NAME` | Không | `proxy-production-system` | Service name cho telemetry resource |
+| `PROXY_TRACE_OTLP_ENDPOINT` | Không | rỗng | OTLP gRPC endpoint (ví dụ `otel-collector:4317`), rỗng = tắt exporter |
+| `PROXY_TRACE_OTLP_INSECURE` | Không | `true` | Bật/tắt TLS cho OTLP gRPC |
+| `PROXY_TRACE_SAMPLE_RATIO` | Không | `1.0` | Tỷ lệ sampling trace trong khoảng `[0,1]` |
 
 ## 4) Chạy test
 
@@ -89,7 +98,15 @@ Nếu cluster dùng Prometheus Operator, apply thêm:
 kubectl apply -f deployments/k8s/servicemonitor.yaml
 ```
 
+Ví dụ bật tracing tới OpenTelemetry Collector:
+
+```bash
+export PROXY_TRACE_OTLP_ENDPOINT=otel-collector.observability.svc.cluster.local:4317
+export PROXY_TRACE_OTLP_INSECURE=true
+export PROXY_TRACE_SAMPLE_RATIO=0.2
+```
+
 > Manifest là baseline để bắt đầu. Trước khi dùng production thật, nên bổ sung:
 > - TLS termination / mTLS
-> - Tracing và alerting theo SLO
+> - Alerting theo SLO
 > - PodDisruptionBudget và NetworkPolicy

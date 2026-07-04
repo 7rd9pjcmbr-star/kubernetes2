@@ -18,6 +18,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ const (
 	defaultWriteTimeout   = 15 * time.Second
 	defaultIdleTimeout    = 60 * time.Second
 	defaultShutdownPeriod = 20 * time.Second
+	defaultServiceName    = "proxy-production-system"
 )
 
 // Config contains runtime options for the proxy server.
@@ -44,6 +46,11 @@ type Config struct {
 	RateLimitRPS   int
 	RateLimitBurst int
 	TrustForwarded bool
+	LogFormat      string
+	ServiceName    string
+	TraceEndpoint  string
+	TraceInsecure  bool
+	TraceSample    float64
 }
 
 func LoadFromEnv() (Config, error) {
@@ -57,6 +64,11 @@ func LoadFromEnv() (Config, error) {
 		RateLimitRPS:   getIntEnv("PROXY_RATE_LIMIT_RPS", 0),
 		RateLimitBurst: getIntEnv("PROXY_RATE_LIMIT_BURST", 0),
 		TrustForwarded: getBoolEnv("PROXY_TRUST_FORWARDED", false),
+		LogFormat:      strings.ToLower(getEnv("PROXY_LOG_FORMAT", "json")),
+		ServiceName:    getEnv("PROXY_SERVICE_NAME", defaultServiceName),
+		TraceEndpoint:  strings.TrimSpace(os.Getenv("PROXY_TRACE_OTLP_ENDPOINT")),
+		TraceInsecure:  getBoolEnv("PROXY_TRACE_OTLP_INSECURE", true),
+		TraceSample:    getFloatEnv("PROXY_TRACE_SAMPLE_RATIO", 1.0),
 	}
 
 	upstreams := splitTrim(os.Getenv("PROXY_UPSTREAMS"))
@@ -85,6 +97,15 @@ func validate(cfg Config) error {
 	}
 	if cfg.RateLimitRPS > 0 && cfg.RateLimitBurst == 0 {
 		return fmt.Errorf("PROXY_RATE_LIMIT_BURST must be set when PROXY_RATE_LIMIT_RPS is enabled")
+	}
+	if cfg.LogFormat != "json" && cfg.LogFormat != "text" {
+		return fmt.Errorf("invalid PROXY_LOG_FORMAT=%q, supported values: json,text", cfg.LogFormat)
+	}
+	if cfg.ServiceName == "" {
+		return fmt.Errorf("PROXY_SERVICE_NAME must not be empty")
+	}
+	if cfg.TraceSample < 0 || cfg.TraceSample > 1 || math.IsNaN(cfg.TraceSample) {
+		return fmt.Errorf("PROXY_TRACE_SAMPLE_RATIO must be in range [0,1]")
 	}
 	return nil
 }
@@ -130,6 +151,18 @@ func getBoolEnv(key string, fallback bool) bool {
 		return fallback
 	}
 	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func getFloatEnv(key string, fallback float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return fallback
 	}

@@ -12,3 +12,8 @@ data:
   PROXY_RATE_LIMIT_RPS: "200"
   PROXY_RATE_LIMIT_BURST: "400"
   PROXY_TRUST_FORWARDED: "true"
+  PROXY_LOG_FORMAT: "json"
+  PROXY_SERVICE_NAME: "proxy-production-system"
+  PROXY_TRACE_OTLP_ENDPOINT: "otel-collector.observability.svc.cluster.local:4317"
+  PROXY_TRACE_OTLP_INSECURE: "true"
+  PROXY_TRACE_SAMPLE_RATIO: "1.0"
