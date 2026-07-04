@@ -40,6 +40,10 @@ type Config struct {
 	WriteTimeout   time.Duration
 	IdleTimeout    time.Duration
 	ShutdownPeriod time.Duration
+	AuthToken      string
+	RateLimitRPS   int
+	RateLimitBurst int
+	TrustForwarded bool
 }
 
 func LoadFromEnv() (Config, error) {
@@ -49,6 +53,10 @@ func LoadFromEnv() (Config, error) {
 		WriteTimeout:   getDurationEnv("PROXY_WRITE_TIMEOUT", defaultWriteTimeout),
 		IdleTimeout:    getDurationEnv("PROXY_IDLE_TIMEOUT", defaultIdleTimeout),
 		ShutdownPeriod: getDurationEnv("PROXY_SHUTDOWN_TIMEOUT", defaultShutdownPeriod),
+		AuthToken:      strings.TrimSpace(os.Getenv("PROXY_AUTH_TOKEN")),
+		RateLimitRPS:   getIntEnv("PROXY_RATE_LIMIT_RPS", 0),
+		RateLimitBurst: getIntEnv("PROXY_RATE_LIMIT_BURST", 0),
+		TrustForwarded: getBoolEnv("PROXY_TRUST_FORWARDED", false),
 	}
 
 	upstreams := splitTrim(os.Getenv("PROXY_UPSTREAMS"))
@@ -72,6 +80,12 @@ func validate(cfg Config) error {
 	if cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownPeriod <= 0 {
 		return fmt.Errorf("timeouts must be greater than zero")
 	}
+	if cfg.RateLimitRPS < 0 || cfg.RateLimitBurst < 0 {
+		return fmt.Errorf("rate limit values must be greater than or equal to zero")
+	}
+	if cfg.RateLimitRPS > 0 && cfg.RateLimitBurst == 0 {
+		return fmt.Errorf("PROXY_RATE_LIMIT_BURST must be set when PROXY_RATE_LIMIT_RPS is enabled")
+	}
 	return nil
 }
 
@@ -93,6 +107,30 @@ func getDurationEnv(key string, fallback time.Duration) time.Duration {
 func getEnv(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func getIntEnv(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func getBoolEnv(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
 		return fallback
 	}
 	return value

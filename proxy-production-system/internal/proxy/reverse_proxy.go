@@ -24,7 +24,7 @@ import (
 	"net/url"
 )
 
-func NewRoundRobinHandler(upstreams []string) (http.Handler, error) {
+func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.Handler, error) {
 	if len(upstreams) == 0 {
 		return nil, fmt.Errorf("at least one upstream is required")
 	}
@@ -57,6 +57,15 @@ func NewRoundRobinHandler(upstreams []string) (http.Handler, error) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+	})
 	mux.Handle("/", reverseProxy)
-	return mux, nil
+
+	handler := withRateLimit(options, mux)
+	handler = withAuth(options.AuthToken, handler)
+	handler = withRequestLogging(handler, options.TrustForwarded)
+	return handler, nil
 }

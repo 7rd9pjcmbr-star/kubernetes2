@@ -3,9 +3,12 @@
 Scaffold dự án proxy production-ready ở mức nền tảng:
 
 - Reverse proxy round-robin nhiều upstream.
-- Health check endpoint (`/healthz`) cho liveness/readiness.
+- Health check endpoint (`/healthz`) và readiness endpoint (`/readyz`).
 - Graceful shutdown để tránh rớt request khi rollout.
 - Runtime config bằng environment variables.
+- Optional token auth qua header `X-Proxy-Token`.
+- Optional rate limiting theo client IP.
+- Request logging có `request_id` để trace.
 - Dockerfile + docker-compose để chạy local.
 - Kubernetes manifests mẫu để deploy.
 
@@ -18,6 +21,10 @@ proxy-production-system/
 ├── internal/proxy/
 │   ├── pool.go
 │   ├── pool_test.go
+│   ├── middleware.go
+│   ├── middleware_test.go
+│   ├── rate_limiter.go
+│   ├── rate_limiter_test.go
 │   └── reverse_proxy.go
 ├── deployments/
 │   ├── docker/Dockerfile
@@ -40,6 +47,7 @@ Test nhanh:
 
 ```bash
 curl -i http://localhost:8080/healthz
+curl -i http://localhost:8080/readyz
 curl -i http://localhost:8080
 ```
 
@@ -53,6 +61,10 @@ curl -i http://localhost:8080
 | `PROXY_WRITE_TIMEOUT` | Không | `15s` | Write timeout cho HTTP server |
 | `PROXY_IDLE_TIMEOUT` | Không | `60s` | Idle timeout cho keep-alive |
 | `PROXY_SHUTDOWN_TIMEOUT` | Không | `20s` | Timeout cho graceful shutdown |
+| `PROXY_AUTH_TOKEN` | Không | rỗng | Nếu set, yêu cầu request gửi header `X-Proxy-Token` trùng giá trị này |
+| `PROXY_RATE_LIMIT_RPS` | Không | `0` | Số request/giây theo mỗi IP (`0` = tắt) |
+| `PROXY_RATE_LIMIT_BURST` | Không | `0` | Burst cho token bucket (`>0` khi bật RPS) |
+| `PROXY_TRUST_FORWARDED` | Không | `false` | Tin `X-Forwarded-For`/`X-Real-Ip` khi đứng sau LB/reverse proxy |
 
 ## 4) Chạy test
 
@@ -68,7 +80,5 @@ kubectl apply -f deployments/k8s/
 
 > Manifest là baseline để bắt đầu. Trước khi dùng production thật, nên bổ sung:
 > - TLS termination / mTLS
-> - AuthN/AuthZ theo nhu cầu
-> - Rate limiting, WAF
 > - Metrics, tracing, alerting
 > - PodDisruptionBudget và NetworkPolicy
