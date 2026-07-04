@@ -49,7 +49,8 @@ proxy-production-system/
 │       └── servicemonitor.yaml
 ├── docs/
 │   ├── release-checklist.md
-│   └── release-standard.md
+│   ├── release-standard.md
+│   └── user-guide.md
 └── scripts/
     ├── install-nginx-ingress-controller.sh
     ├── package-release.sh
@@ -129,6 +130,7 @@ Checklist bàn giao:
 
 - `docs/release-checklist.md`
 - `docs/release-standard.md`
+- `docs/user-guide.md`
 
 ## 5) Deploy Kubernetes (mẫu)
 
