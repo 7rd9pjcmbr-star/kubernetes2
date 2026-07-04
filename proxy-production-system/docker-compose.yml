@@ -1,0 +1,20 @@
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    depends_on:
+      - echo-a
+      - echo-b
+
+  echo-a:
+    image: hashicorp/http-echo:latest
+    command: ["-listen=:8081", "-text=echo-a"]
+
+  echo-b:
+    image: hashicorp/http-echo:latest
+    command: ["-listen=:8082", "-text=echo-b"]
