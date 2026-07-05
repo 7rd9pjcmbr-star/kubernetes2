@@ -2,6 +2,8 @@
 
 Tài liệu này tập trung vào cách sử dụng thực tế cho dev và vận hành.
 
+Nếu cần chạy demo nhanh, xem thêm: `docs/quickstart-5m.md`.
+
 ## 1) Mục tiêu hệ thống
 
 Proxy thực hiện reverse proxy tới nhiều upstream với các khả năng:

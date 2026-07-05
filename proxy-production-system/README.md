@@ -49,6 +49,7 @@ proxy-production-system/
 │       └── servicemonitor.yaml
 ├── docs/
 │   ├── release-checklist.md
+│   ├── quickstart-5m.md
 │   ├── release-standard.md
 │   └── user-guide.md
 └── scripts/
@@ -128,6 +129,7 @@ make release-ready VERSION=v1.0.0
 
 Checklist bàn giao:
 
+- `docs/quickstart-5m.md`
 - `docs/release-checklist.md`
 - `docs/release-standard.md`
 - `docs/user-guide.md`
