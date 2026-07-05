@@ -24,8 +24,9 @@ import (
 )
 
 var (
-	ErrNotFound  = errors.New("analysis not found")
-	ErrPlanLimit = errors.New("plan limit reached")
+	ErrNotFound         = errors.New("analysis not found")
+	ErrPlanLimit        = errors.New("plan limit reached")
+	ErrExportNotAllowed = errors.New("export not allowed")
 )
 
 type AnalysisRepository interface {
@@ -40,6 +41,7 @@ type BenchmarkRepository interface {
 type UsageRepository interface {
 	GetMonthly(ctx context.Context, workspaceID, monthKey string) (*MonthlyUsage, error)
 	IncrementAnalyses(ctx context.Context, workspaceID, monthKey string, delta int) error
+	IncrementExports(ctx context.Context, workspaceID, monthKey string, delta int) error
 }
 
 type WorkspacePlanProvider interface {
@@ -88,6 +90,18 @@ type CreateAnalysisRequest struct {
 	WorkspaceID string
 	UserID      string
 	Input       Input
+}
+
+type ExportAnalysisRequest struct {
+	WorkspaceID string
+	AnalysisID  string
+	Format      string
+}
+
+type ExportArtifact struct {
+	ContentType string
+	FileName    string
+	Data        []byte
 }
 
 func (s *Service) CreateAnalysis(ctx context.Context, req CreateAnalysisRequest) (*AnalysisRecord, error) {
@@ -139,6 +153,52 @@ func (s *Service) GetAnalysis(ctx context.Context, workspaceID, analysisID strin
 	return record, nil
 }
 
+func (s *Service) ExportAnalysis(ctx context.Context, req ExportAnalysisRequest) (*ExportArtifact, error) {
+	plan, err := s.planProvider.GetPlan(ctx, req.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("get plan: %w", err)
+	}
+	if !canExport(plan) {
+		return nil, ErrExportNotAllowed
+	}
+	record, err := s.GetAnalysis(ctx, req.WorkspaceID, req.AnalysisID)
+	if err != nil {
+		return nil, err
+	}
+
+	var artifact *ExportArtifact
+	switch req.Format {
+	case "csv":
+		blob, err := buildCSV(record)
+		if err != nil {
+			return nil, fmt.Errorf("build csv: %w", err)
+		}
+		artifact = &ExportArtifact{
+			ContentType: "text/csv; charset=utf-8",
+			FileName:    record.ID + ".csv",
+			Data:        blob,
+		}
+	case "pdf":
+		blob, err := buildPseudoPDF(record)
+		if err != nil {
+			return nil, fmt.Errorf("build pdf: %w", err)
+		}
+		artifact = &ExportArtifact{
+			ContentType: "application/pdf",
+			FileName:    record.ID + ".pdf",
+			Data:        blob,
+		}
+	default:
+		return nil, newValidationError("format", "is invalid", "Use csv or pdf.")
+	}
+
+	monthKey := s.clock.Now().Format("2006-01")
+	if err := s.usageRepo.IncrementExports(ctx, req.WorkspaceID, monthKey, 1); err != nil {
+		return nil, fmt.Errorf("increment export usage: %w", err)
+	}
+	return artifact, nil
+}
+
 func analysesLimit(plan string) int {
 	switch plan {
 	case "free":
@@ -151,5 +211,14 @@ func analysesLimit(plan string) int {
 		return 10000
 	default:
 		return 20
+	}
+}
+
+func canExport(plan string) bool {
+	switch plan {
+	case "growth", "team":
+		return true
+	default:
+		return false
 	}
 }

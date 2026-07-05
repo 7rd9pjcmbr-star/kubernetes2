@@ -16,13 +16,26 @@ limitations under the License.
 
 package codprofit
 
-import "net/http"
+import "fmt"
 
-// NewMux registers the codprofit HTTP endpoints.
-func NewMux(handler *AnalysisHandler) *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/analysis/cod-profit", handler.CreateCodProfitAnalysis)
-	mux.HandleFunc("GET /api/v1/analysis/", handler.GetCodProfitAnalysis)
-	mux.HandleFunc("POST /api/v1/analysis/", handler.ExportCodProfitAnalysis)
-	return mux
+// ValidationError carries machine-readable field and actionable hint.
+type ValidationError struct {
+	Field   string
+	Message string
+	Hint    string
+}
+
+func (e *ValidationError) Error() string {
+	if e.Field == "" {
+		return e.Message
+	}
+	return fmt.Sprintf("%s: %s", e.Field, e.Message)
+}
+
+func newValidationError(field, message, hint string) error {
+	return &ValidationError{
+		Field:   field,
+		Message: message,
+		Hint:    hint,
+	}
 }

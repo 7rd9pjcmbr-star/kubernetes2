@@ -30,6 +30,7 @@ import (
 type fakeService struct {
 	createFn func(ctx context.Context, req CreateAnalysisRequest) (*AnalysisRecord, error)
 	getFn    func(ctx context.Context, workspaceID, analysisID string) (*AnalysisRecord, error)
+	exportFn func(ctx context.Context, req ExportAnalysisRequest) (*ExportArtifact, error)
 }
 
 func (f fakeService) CreateAnalysis(ctx context.Context, req CreateAnalysisRequest) (*AnalysisRecord, error) {
@@ -38,6 +39,10 @@ func (f fakeService) CreateAnalysis(ctx context.Context, req CreateAnalysisReque
 
 func (f fakeService) GetAnalysis(ctx context.Context, workspaceID, analysisID string) (*AnalysisRecord, error) {
 	return f.getFn(ctx, workspaceID, analysisID)
+}
+
+func (f fakeService) ExportAnalysis(ctx context.Context, req ExportAnalysisRequest) (*ExportArtifact, error) {
+	return f.exportFn(ctx, req)
 }
 
 func TestCreateCodProfitAnalysis201(t *testing.T) {
@@ -147,5 +152,39 @@ func TestGetCodProfitAnalysis500(t *testing.T) {
 	handler.GetCodProfitAnalysis(recorder, req)
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", recorder.Code)
+	}
+}
+
+func TestExportCodProfitAnalysis200(t *testing.T) {
+	handler := NewAnalysisHandler(fakeService{
+		exportFn: func(_ context.Context, _ ExportAnalysisRequest) (*ExportArtifact, error) {
+			return &ExportArtifact{
+				ContentType: "text/csv; charset=utf-8",
+				FileName:    "anl.csv",
+				Data:        []byte("analysis_id,anl_1\n"),
+			}, nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis/anl-1", bytes.NewBufferString(`{"format":"csv"}`))
+	req.Header.Set("X-Workspace-Id", "ws-1")
+	recorder := httptest.NewRecorder()
+	handler.ExportCodProfitAnalysis(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+}
+
+func TestExportCodProfitAnalysis402(t *testing.T) {
+	handler := NewAnalysisHandler(fakeService{
+		exportFn: func(_ context.Context, _ ExportAnalysisRequest) (*ExportArtifact, error) {
+			return nil, ErrExportNotAllowed
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/analysis/anl-1", bytes.NewBufferString(`{"format":"csv"}`))
+	req.Header.Set("X-Workspace-Id", "ws-1")
+	recorder := httptest.NewRecorder()
+	handler.ExportCodProfitAnalysis(recorder, req)
+	if recorder.Code != http.StatusPaymentRequired {
+		t.Fatalf("expected 402, got %d", recorder.Code)
 	}
 }

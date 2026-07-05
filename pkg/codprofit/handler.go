@@ -27,6 +27,7 @@ import (
 type analysisUsecase interface {
 	CreateAnalysis(ctx context.Context, req CreateAnalysisRequest) (*AnalysisRecord, error)
 	GetAnalysis(ctx context.Context, workspaceID, analysisID string) (*AnalysisRecord, error)
+	ExportAnalysis(ctx context.Context, req ExportAnalysisRequest) (*ExportArtifact, error)
 }
 
 type AnalysisHandler struct {
@@ -77,15 +78,51 @@ func (h *AnalysisHandler) GetCodProfitAnalysis(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, record.toResponse())
 }
 
+func (h *AnalysisHandler) ExportCodProfitAnalysis(w http.ResponseWriter, r *http.Request) {
+	workspaceID, ok := workspaceIDFromHeader(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Workspace context is missing.", "", "Provide X-Workspace-Id header.")
+		return
+	}
+	analysisID := analysisIDFromPath(r.URL.Path)
+	if analysisID == "" {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "analysisId is required.", "analysisId", "")
+		return
+	}
+	var req struct {
+		Format string `json:"format"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid JSON body.", "", "Provide format in body: csv or pdf.")
+		return
+	}
+	artifact, err := h.svc.ExportAnalysis(r.Context(), ExportAnalysisRequest{
+		WorkspaceID: workspaceID,
+		AnalysisID:  analysisID,
+		Format:      req.Format,
+	})
+	if err != nil {
+		h.handleAppError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", artifact.ContentType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+artifact.FileName+"\"")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(artifact.Data)
+}
+
 func (h *AnalysisHandler) handleAppError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrPlanLimit):
 		writeError(w, http.StatusTooManyRequests, "PLAN_LIMIT_REACHED", "Ban da dat gioi han phan tich thang nay.", "", "Nang cap goi de tiep tuc.")
+	case errors.Is(err, ErrExportNotAllowed):
+		writeError(w, http.StatusPaymentRequired, "EXPORT_NOT_ALLOWED", "Goi hien tai khong ho tro export.", "", "Nang cap len Growth de mo khoa export.")
 	case errors.Is(err, ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Analysis not found.", "", "")
 	default:
-		if looksLikeValidationError(err) {
-			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), "", "")
+		var validationErr *ValidationError
+		if errors.As(err, &validationErr) {
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", validationErr.Message, validationErr.Field, validationErr.Hint)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Unexpected server error.", "", "")
@@ -201,17 +238,6 @@ func writeError(w http.ResponseWriter, status int, code, message, field, hint st
 	envelope.Error.Field = field
 	envelope.Error.Hint = hint
 	writeJSON(w, status, envelope)
-}
-
-func looksLikeValidationError(err error) bool {
-	msg := strings.ToLower(err.Error())
-	markers := []string{"required", "must be", "invalid", "cannot", "category", "sellingprice", "primaryprovinces"}
-	for _, marker := range markers {
-		if strings.Contains(msg, marker) {
-			return true
-		}
-	}
-	return false
 }
 
 func userIDFromContext(r *http.Request) (string, bool) {

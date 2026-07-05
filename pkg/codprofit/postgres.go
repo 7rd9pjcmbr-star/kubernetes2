@@ -157,3 +157,17 @@ DO UPDATE SET analyses_count = codprofit_usage_monthly.analyses_count + EXCLUDED
 	}
 	return nil
 }
+
+func (r *PostgresUsageRepository) IncrementExports(ctx context.Context, workspaceID, monthKey string, delta int) error {
+	query := `
+INSERT INTO codprofit_usage_monthly (workspace_id, month_key, analyses_count, exports_count)
+VALUES ($1, $2, 0, $3)
+ON CONFLICT (workspace_id, month_key)
+DO UPDATE SET exports_count = codprofit_usage_monthly.exports_count + EXCLUDED.exports_count
+`
+	_, err := r.db.ExecContext(ctx, query, workspaceID, monthKey, delta)
+	if err != nil {
+		return fmt.Errorf("increment exports usage: %w", err)
+	}
+	return nil
+}

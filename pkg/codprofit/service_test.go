@@ -59,6 +59,42 @@ func TestServiceGetAnalysisNotFound(t *testing.T) {
 	}
 }
 
+func TestServiceExportAnalysis(t *testing.T) {
+	svc := buildServiceForTest("growth", MonthlyUsage{AnalysesCount: 1}, nil)
+	_, err := svc.CreateAnalysis(context.Background(), CreateAnalysisRequest{
+		WorkspaceID: "ws-1",
+		UserID:      "u-1",
+		Input:       validInput(),
+	})
+	if err != nil {
+		t.Fatalf("create analysis failed: %v", err)
+	}
+
+	artifact, err := svc.ExportAnalysis(context.Background(), ExportAnalysisRequest{
+		WorkspaceID: "ws-1",
+		AnalysisID:  "anl_123",
+		Format:      "csv",
+	})
+	if err != nil {
+		t.Fatalf("unexpected export error: %v", err)
+	}
+	if artifact.FileName != "anl_123.csv" {
+		t.Fatalf("unexpected file name: %s", artifact.FileName)
+	}
+}
+
+func TestServiceExportAnalysisBlockedByPlan(t *testing.T) {
+	svc := buildServiceForTest("free", MonthlyUsage{AnalysesCount: 1}, nil)
+	_, err := svc.ExportAnalysis(context.Background(), ExportAnalysisRequest{
+		WorkspaceID: "ws-1",
+		AnalysisID:  "anl_123",
+		Format:      "csv",
+	})
+	if !errors.Is(err, ErrExportNotAllowed) {
+		t.Fatalf("expected export blocked, got %v", err)
+	}
+}
+
 type fakeAnalysisRepo struct {
 	data      map[string]*AnalysisRecord
 	createErr error
@@ -101,6 +137,10 @@ func (f *fakeUsageRepo) GetMonthly(_ context.Context, _, _ string) (*MonthlyUsag
 }
 
 func (f *fakeUsageRepo) IncrementAnalyses(_ context.Context, _, _ string, _ int) error {
+	return nil
+}
+
+func (f *fakeUsageRepo) IncrementExports(_ context.Context, _, _ string, _ int) error {
 	return nil
 }
 

@@ -55,6 +55,7 @@ _ = server.ListenAndServe()
 `cmd/codprofit-apiserver` starts an HTTP server with:
 - `POST /api/v1/analysis/cod-profit`
 - `GET /api/v1/analysis/{analysisId}`
+- `POST /api/v1/analysis/{analysisId}` (body: `{"format":"csv"|"pdf"}`)
 - `GET /healthz`
 - `GET /readyz`
 

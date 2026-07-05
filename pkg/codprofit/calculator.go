@@ -17,7 +17,6 @@ limitations under the License.
 package codprofit
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -105,67 +104,67 @@ func Calculate(in Input, bm BenchmarkAggregate, cfg RuleConfig) (Output, error) 
 
 func validateInput(in Input) error {
 	if in.Product.Name == "" {
-		return errors.New("product.name is required")
+		return newValidationError("product.name", "is required", "Provide a descriptive product name.")
 	}
 	if in.Product.SellingPrice < 1000 {
-		return errors.New("product.sellingPrice must be >= 1000")
+		return newValidationError("product.sellingPrice", "must be >= 1000", "Use VND integer values, minimum 1000.")
 	}
 	if in.Product.COGS < 0 {
-		return errors.New("product.cogs must be >= 0")
+		return newValidationError("product.cogs", "must be >= 0", "COGS cannot be negative.")
 	}
 	if in.Product.COGS > in.Product.SellingPrice {
-		return errors.New("product.cogs cannot exceed product.sellingPrice")
+		return newValidationError("product.cogs", "cannot exceed product.sellingPrice", "Lower COGS or increase selling price.")
 	}
 	if in.Costs.PlatformFeePct < 0 || in.Costs.PlatformFeePct > 100 {
-		return errors.New("costs.platformFeePct must be in [0,100]")
+		return newValidationError("costs.platformFeePct", "must be in [0,100]", "Set platform fee percentage between 0 and 100.")
 	}
 	if in.Costs.PaymentFeePct < 0 || in.Costs.PaymentFeePct > 100 {
-		return errors.New("costs.paymentFeePct must be in [0,100]")
+		return newValidationError("costs.paymentFeePct", "must be in [0,100]", "Set payment fee percentage between 0 and 100.")
 	}
 	if in.Costs.VoucherCost < 0 {
-		return errors.New("costs.voucherCost must be >= 0")
+		return newValidationError("costs.voucherCost", "must be >= 0", "Voucher cost cannot be negative.")
 	}
 	if in.Shipping.ForwardShipCost < 0 || in.Shipping.ReturnShipCost < 0 || in.Shipping.HandlingLossPerReturn < 0 {
-		return errors.New("shipping costs must be >= 0")
+		return newValidationError("shipping", "costs must be >= 0", "Set forward, return, and handling shipping costs to non-negative numbers.")
 	}
 	if in.Ads.ExpectedCPA < 0 {
-		return errors.New("ads.expectedCpa must be >= 0")
+		return newValidationError("ads.expectedCpa", "must be >= 0", "Expected CPA cannot be negative.")
 	}
 	if in.Ads.NewCustomerRatioPct < 0 || in.Ads.NewCustomerRatioPct > 100 {
-		return errors.New("ads.newCustomerRatioPct must be in [0,100]")
+		return newValidationError("ads.newCustomerRatioPct", "must be in [0,100]", "Set new customer ratio as percentage from 0 to 100.")
 	}
 	if len(in.Market.PrimaryProvinces) == 0 {
-		return errors.New("market.primaryProvinces must have at least one province")
+		return newValidationError("market.primaryProvinces", "must have at least one province", "Select at least one target province.")
 	}
 	if in.Market.HistoricalReturnRatePct != nil {
 		v := *in.Market.HistoricalReturnRatePct
 		if v < 0 || v > 100 {
-			return errors.New("market.historicalReturnRatePct must be in [0,100]")
+			return newValidationError("market.historicalReturnRatePct", "must be in [0,100]", "Set historical return rate as percentage from 0 to 100.")
 		}
 	}
 	if in.Market.ContentMismatchScore != nil {
 		v := *in.Market.ContentMismatchScore
 		if v < 0 || v > 100 {
-			return errors.New("market.contentMismatchScore must be in [0,100]")
+			return newValidationError("market.contentMismatchScore", "must be in [0,100]", "Set mismatch score between 0 and 100.")
 		}
 	}
 	switch in.Product.Category {
 	case CategoryBeauty, CategoryFashion, CategoryHome, CategoryMotherBaby, CategoryOther:
 	default:
-		return fmt.Errorf("product.category is invalid: %s", in.Product.Category)
+		return newValidationError("product.category", fmt.Sprintf("is invalid: %s", in.Product.Category), "Use one of beauty, fashion, home, mother_baby, other.")
 	}
 	return nil
 }
 
 func validateBenchmark(bm BenchmarkAggregate) error {
 	if bm.BaselineReturnRatePct < 0 || bm.BaselineReturnRatePct > 100 {
-		return errors.New("benchmark.baselineReturnRatePct must be in [0,100]")
+		return newValidationError("benchmark.baselineReturnRatePct", "must be in [0,100]", "Fix benchmark source data.")
 	}
 	if bm.CarrierDelayScore < 0 || bm.CarrierDelayScore > 100 {
-		return errors.New("benchmark.carrierDelayScore must be in [0,100]")
+		return newValidationError("benchmark.carrierDelayScore", "must be in [0,100]", "Fix benchmark source data.")
 	}
 	if bm.PriceBandRiskScore < 0 || bm.PriceBandRiskScore > 100 {
-		return errors.New("benchmark.priceBandRiskScore must be in [0,100]")
+		return newValidationError("benchmark.priceBandRiskScore", "must be in [0,100]", "Fix benchmark source data.")
 	}
 	return nil
 }
@@ -176,18 +175,18 @@ func validateConfig(cfg RuleConfig) error {
 	for _, key := range required {
 		v, ok := cfg.Weights[key]
 		if !ok {
-			return fmt.Errorf("missing weight: %s", key)
+			return newValidationError("rules.weights."+key, "is required", "Include all six weight keys.")
 		}
 		if v < 0 || v > 1 {
-			return fmt.Errorf("weight %s must be in [0,1]", key)
+			return newValidationError("rules.weights."+key, "must be in [0,1]", "Set weight as ratio between 0 and 1.")
 		}
 		sum += v
 	}
 	if math.Abs(sum-1.0) > 0.001 {
-		return fmt.Errorf("weights must sum to 1.0, got %.3f", sum)
+		return newValidationError("rules.weights", fmt.Sprintf("must sum to 1.0, got %.3f", sum), "Adjust weights so total equals exactly 1.0.")
 	}
 	if cfg.LowMax < 0 || cfg.MediumMax < cfg.LowMax || cfg.MediumMax > 100 {
-		return errors.New("invalid risk thresholds")
+		return newValidationError("rules.thresholds", "are invalid", "Ensure lowMax <= mediumMax and both are between 0 and 100.")
 	}
 	return nil
 }
