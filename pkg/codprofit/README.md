@@ -50,6 +50,26 @@ _ = server.ListenAndServe()
 1. `migrations/001_init.sql`
 2. `migrations/002_seed_benchmarks.sql`
 
+## Run standalone API server
+
+`cmd/codprofit-apiserver` starts an HTTP server with:
+- `POST /api/v1/analysis/cod-profit`
+- `GET /api/v1/analysis/{analysisId}`
+- `GET /healthz`
+- `GET /readyz`
+
+Example:
+
+```bash
+CODPROFIT_DB_DRIVER=pgx \
+CODPROFIT_DB_DSN="postgres://user:pass@localhost:5432/codprofit?sslmode=disable" \
+CODPROFIT_LISTEN_ADDRESS=":8080" \
+go run ./cmd/codprofit-apiserver
+```
+
+If `CODPROFIT_USE_WORKSPACE_PLAN_TABLE=true`, plan lookup reads from `codprofit_workspaces.plan`.
+Otherwise `CODPROFIT_DEFAULT_PLAN` is used as a static fallback.
+
 ## Request headers expected by handler
 
 - `X-User-Id`: used for create analysis
