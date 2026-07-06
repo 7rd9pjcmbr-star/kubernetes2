@@ -194,8 +194,26 @@ def _tiktok_sign(path, query_params, app_secret):
 def build_authenticated_checks():
     checks = []
 
+    pancake_api_key = os.getenv("PANCAKE_POS_API_KEY", "").strip()
     pancake_token = os.getenv("PANCAKE_POS_ACCESS_TOKEN", "").strip()
-    if pancake_token:
+    if pancake_api_key:
+        checks.append(
+            {
+                "platform": "Pancake POS",
+                "method": "GET",
+                "url": "https://pos.pages.fm/api/v1/shops",
+                "headers": {},
+                "payload": None,
+                "expected_http": [200],
+                "expected_substring": "",
+                "query_params": {"api_key": pancake_api_key},
+                "pancake_auth_mode": "api_key",
+                "disallow_substrings": ["api_key is invalid", "access_token is invalid", "token is expired"],
+                "notes": "Authenticated call with PANCAKE_POS_API_KEY.",
+                "missing_env": [],
+            }
+        )
+    elif pancake_token:
         pancake_candidates = _extract_pancake_token_candidates(pancake_token)
         checks.append(
             {
@@ -207,6 +225,7 @@ def build_authenticated_checks():
                 "expected_http": [200],
                 "expected_substring": "",
                 "token_candidates": pancake_candidates,
+                "pancake_auth_mode": "access_token",
                 "disallow_substrings": ["access_token is invalid", "token is expired"],
                 "notes": (
                     "Authenticated call with PANCAKE_POS_ACCESS_TOKEN; "
@@ -219,7 +238,7 @@ def build_authenticated_checks():
         checks.append(
             {
                 "platform": "Pancake POS",
-                "missing_env": ["PANCAKE_POS_ACCESS_TOKEN"],
+                "missing_env": ["PANCAKE_POS_API_KEY or PANCAKE_POS_ACCESS_TOKEN"],
                 "notes": "Missing Pancake credential.",
             }
         )
@@ -475,7 +494,27 @@ def perform_authenticated_check(item, timeout):
         }
 
     pancake_attempts = []
-    if item["platform"] == "Pancake POS" and item.get("token_candidates"):
+    if item["platform"] == "Pancake POS" and item.get("pancake_auth_mode") == "api_key":
+        params = item.get("query_params", {})
+        url = item["url"] + "?" + urllib.parse.urlencode(params)
+        status, body, error = _request(
+            url,
+            item["method"],
+            timeout,
+            headers=item.get("headers", {}),
+            payload=item.get("payload"),
+        )
+        response_json = _parse_json_body(body)
+        pancake_attempts.append(
+            {
+                "token_source": "api_key",
+                "status_code": status,
+                "error_code": response_json.get("error_code") if response_json else None,
+                "message": response_json.get("message") if response_json else body[:120],
+            }
+        )
+        evaluated_url = item["url"]
+    elif item["platform"] == "Pancake POS" and item.get("token_candidates"):
         status = None
         body = ""
         error = None
@@ -529,11 +568,19 @@ def perform_authenticated_check(item, timeout):
     if item["platform"] == "Pancake POS":
         diagnostics["attempts"] = pancake_attempts
         if response_json and response_json.get("success") is False:
-            diagnostics["classification"] = "invalid_or_expired_token_or_wrong_token_type"
-            diagnostics["hint"] = (
-                "Use POS Open API access token. "
-                "If you pasted a login JWT, provide the inner accessToken claim."
-            )
+            message = str(response_json.get("message", "")).lower()
+            if "api_key is invalid" in message:
+                diagnostics["classification"] = "invalid_api_key"
+                diagnostics["hint"] = "Generate a valid API key in Pancake POS settings and retry."
+            elif "expired" in message:
+                diagnostics["classification"] = "expired_token"
+                diagnostics["hint"] = "Refresh/reissue token and retry."
+            else:
+                diagnostics["classification"] = "invalid_or_wrong_token_type"
+                diagnostics["hint"] = (
+                    "Use POS Open API token/key. "
+                    "If you pasted a login JWT, provide the inner accessToken claim."
+                )
 
     return {
         "platform": item["platform"],

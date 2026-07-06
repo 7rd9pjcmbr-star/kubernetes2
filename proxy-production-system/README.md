@@ -141,8 +141,22 @@ python3 scripts/check_vn_platform_apis.py --authenticated --require-auth
 Script hiện kiểm tra: Pancake POS, GHTK, Nhanh.vn POS v3, Sapo, Haravan, TikTok Shop, Shopee, GHN.
 
 Lưu ý cho Pancake POS:
-- Script tự thử cả token bạn cung cấp và `accessToken` lồng bên trong (nếu token là JWT bọc ngoài).
+- Ưu tiên `PANCAKE_POS_API_KEY` nếu có.
+- Nếu dùng token, script tự thử cả token bạn cung cấp và `accessToken` lồng bên trong (nếu token là JWT bọc ngoài).
 - Khi lỗi, kết quả sẽ có `diagnostics.classification` và `diagnostics.hint` để chỉ rõ khả năng:
+  - sai API key
   - sai loại token
   - token hết hạn
   - token không thuộc POS Open API
+
+## 9) Theo dõi đơn hàng Pancake POS realtime
+
+```bash
+PANCAKE_POS_API_KEY=your_key python3 scripts/monitor_pancake_orders.py
+```
+
+Tuỳ chọn:
+
+```bash
+python3 scripts/monitor_pancake_orders.py --api-key your_key --poll-seconds 30 --limit 5
+```
