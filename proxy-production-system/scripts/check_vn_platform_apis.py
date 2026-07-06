@@ -2,6 +2,7 @@
 """Check connectivity and authenticated smoke tests for VN ecommerce platform APIs."""
 
 import argparse
+import base64
 import hashlib
 import hmac
 import json
@@ -105,6 +106,53 @@ def _request(url, method, timeout, headers=None, payload=None):
     return status, body, error
 
 
+def _decode_jwt_payload(token):
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    payload = parts[1]
+    padding = "=" * ((4 - len(payload) % 4) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode((payload + padding).encode("utf-8")).decode("utf-8")
+        parsed = json.loads(decoded)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:  # pragma: no cover - token shape varies
+        return None
+    return None
+
+
+def _extract_pancake_token_candidates(raw_token):
+    candidates = []
+    if raw_token:
+        candidates.append(("provided", raw_token))
+
+    payload = _decode_jwt_payload(raw_token) if raw_token else None
+    nested_access_token = payload.get("accessToken") if isinstance(payload, dict) else None
+    if isinstance(nested_access_token, str) and nested_access_token and nested_access_token != raw_token:
+        candidates.append(("nested_access_token", nested_access_token))
+
+    # Deduplicate while preserving order.
+    seen = set()
+    unique = []
+    for source, token in candidates:
+        if token in seen:
+            continue
+        unique.append((source, token))
+        seen.add(token)
+    return unique
+
+
+def _parse_json_body(body):
+    try:
+        parsed = json.loads(body)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        return None
+    return None
+
+
 def perform_check(item, timeout):
     headers = {}
     if item.get("content_type"):
@@ -148,20 +196,22 @@ def build_authenticated_checks():
 
     pancake_token = os.getenv("PANCAKE_POS_ACCESS_TOKEN", "").strip()
     if pancake_token:
-        pancake_url = (
-            "https://pos.pages.fm/api/v1/shops?"
-            + urllib.parse.urlencode({"access_token": pancake_token})
-        )
+        pancake_candidates = _extract_pancake_token_candidates(pancake_token)
         checks.append(
             {
                 "platform": "Pancake POS",
                 "method": "GET",
-                "url": pancake_url,
+                "url": "https://pos.pages.fm/api/v1/shops",
                 "headers": {},
                 "payload": None,
                 "expected_http": [200],
                 "expected_substring": "",
-                "notes": "Authenticated call with PANCAKE_POS_ACCESS_TOKEN.",
+                "token_candidates": pancake_candidates,
+                "disallow_substrings": ["access_token is invalid", "token is expired"],
+                "notes": (
+                    "Authenticated call with PANCAKE_POS_ACCESS_TOKEN; "
+                    "auto-retries nested accessToken when token is a wrapped JWT."
+                ),
                 "missing_env": [],
             }
         )
@@ -424,26 +474,72 @@ def perform_authenticated_check(item, timeout):
             "notes": item["notes"],
         }
 
-    status, body, error = _request(
-        item["url"],
-        item["method"],
-        timeout,
-        headers=item.get("headers", {}),
-        payload=item.get("payload"),
-    )
+    pancake_attempts = []
+    if item["platform"] == "Pancake POS" and item.get("token_candidates"):
+        status = None
+        body = ""
+        error = None
+        for source, candidate_token in item["token_candidates"]:
+            url = item["url"] + "?" + urllib.parse.urlencode({"access_token": candidate_token})
+            status, body, error = _request(
+                url,
+                item["method"],
+                timeout,
+                headers=item.get("headers", {}),
+                payload=item.get("payload"),
+            )
+            response_json = _parse_json_body(body)
+            pancake_attempts.append(
+                {
+                    "token_source": source,
+                    "status_code": status,
+                    "error_code": response_json.get("error_code") if response_json else None,
+                    "message": response_json.get("message") if response_json else body[:120],
+                }
+            )
+            # Stop as soon as we get a successful response structure.
+            if response_json and response_json.get("success") is True:
+                break
+        evaluated_url = item["url"]
+    else:
+        status, body, error = _request(
+            item["url"],
+            item["method"],
+            timeout,
+            headers=item.get("headers", {}),
+            payload=item.get("payload"),
+        )
+        evaluated_url = item["url"]
+
     expected_http = item["expected_http"]
     expected_substring = item.get("expected_substring", "")
     disallow_substrings = item.get("disallow_substrings", [])
     http_ok = status in expected_http if status is not None else False
     body_ok = expected_substring.lower() in body.lower() if expected_substring else True
     disallow_ok = all(token.lower() not in body.lower() for token in disallow_substrings)
-    passed = error is None and http_ok and body_ok and disallow_ok
+    response_json = _parse_json_body(body)
+    pancake_success = (
+        item["platform"] == "Pancake POS"
+        and response_json is not None
+        and response_json.get("success") is True
+    )
+    passed = error is None and ((http_ok and body_ok and disallow_ok) or pancake_success)
+
+    diagnostics = {}
+    if item["platform"] == "Pancake POS":
+        diagnostics["attempts"] = pancake_attempts
+        if response_json and response_json.get("success") is False:
+            diagnostics["classification"] = "invalid_or_expired_token_or_wrong_token_type"
+            diagnostics["hint"] = (
+                "Use POS Open API access token. "
+                "If you pasted a login JWT, provide the inner accessToken claim."
+            )
 
     return {
         "platform": item["platform"],
         "mode": "authenticated",
         "method": item["method"],
-        "url": item["url"],
+        "url": evaluated_url,
         "status_code": status,
         "expected_http": expected_http,
         "expected_substring": expected_substring,
@@ -452,6 +548,7 @@ def perform_authenticated_check(item, timeout):
         "skipped": False,
         "error": error,
         "notes": item["notes"],
+        "diagnostics": diagnostics,
     }
 
 
