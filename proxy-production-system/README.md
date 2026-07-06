@@ -247,3 +247,17 @@ python3 scripts/pancake_oauth_helper.py \
   --client-secret 'YOUR_CLIENT_SECRET' \
   --require-pos-login
 ```
+
+## 13) TikTok Seller URL helper (decode state -> mapping V2)
+
+Script `scripts/tiktok_seller_url_helper.py`:
+- parse URL từ Seller Center
+- decode `state` (base64 JSON)
+- xuất mapping chuẩn cho V2 (`platform/shop_id/warehouse_id/sync flags`)
+
+Ví dụ:
+
+```bash
+python3 scripts/tiktok_seller_url_helper.py \
+  --url 'https://seller-vn.tiktok.com/services/market/service-detail/...&state=BASE64...'
+```
