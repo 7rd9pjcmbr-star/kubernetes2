@@ -232,6 +232,9 @@ Khi `--v2-command` được gọi, script set:
 - `V2_BULK_ACCOUNTS_FILE`: path file `.txt` đã dedupe
 - `V2_BULK_PLATFORM`: nền tảng đích (sapo/pancake/shopee/tiktokshop/ghn)
 
+Script luôn ghi thêm bản đường dẫn cố định cho V2 loader:
+- `/tmp/v2-cleaned/latest/v2_bulk_accounts_<platform>.txt`
+
 Tách file hỗn hợp thành từng nền tảng và đẩy từng file vào V2:
 
 ```bash

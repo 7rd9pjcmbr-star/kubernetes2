@@ -14,6 +14,7 @@ from pathlib import Path
 DEFAULT_UPLOADS_DIR = "/home/ubuntu/.cursor/projects/workspace/uploads"
 DEFAULT_OUTPUT_DIR = "/tmp/v2-cleaned"
 DEFAULT_STATE_FILE = "/tmp/v2-cleaned/state.json"
+DEFAULT_LATEST_DIR = "/tmp/v2-cleaned/latest"
 SUPPORTED_PLATFORMS = {"sapo", "pancake", "shopee", "tiktokshop", "ghn", "unknown"}
 
 
@@ -25,6 +26,7 @@ def parse_args():
     parser.add_argument("--auto", action="store_true", help="Pick newest txt from uploads dir.")
     parser.add_argument("--uploads-dir", default=DEFAULT_UPLOADS_DIR)
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--latest-dir", default=DEFAULT_LATEST_DIR, help="Stable output directory for V2 loader.")
     parser.add_argument("--state-file", default=DEFAULT_STATE_FILE)
     parser.add_argument(
         "--platform",
@@ -207,13 +209,19 @@ def split_lines_by_platform(lines):
     return grouped
 
 
-def write_output(kept_lines, output_dir, platform):
+def write_output(kept_lines, output_dir, latest_dir, platform):
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output_file = out_dir / f"v2_bulk_accounts_{platform}_{timestamp}.txt"
-    output_file.write_text("\n".join(kept_lines) + ("\n" if kept_lines else ""), encoding="utf-8")
-    return output_file
+    content = "\n".join(kept_lines) + ("\n" if kept_lines else "")
+    output_file.write_text(content, encoding="utf-8")
+
+    latest_path = Path(latest_dir)
+    latest_path.mkdir(parents=True, exist_ok=True)
+    latest_file = latest_path / f"v2_bulk_accounts_{platform}.txt"
+    latest_file.write_text(content, encoding="utf-8")
+    return output_file, latest_file
 
 
 def maybe_run_v2(command, output_file, platform):
@@ -231,7 +239,7 @@ def maybe_run_v2(command, output_file, platform):
     }
 
 
-def process_single_platform(lines, output_dir, platform, v2_command):
+def process_single_platform(lines, output_dir, latest_dir, platform, v2_command):
     deduped = []
     seen = set()
     duplicates = 0
@@ -242,7 +250,7 @@ def process_single_platform(lines, output_dir, platform, v2_command):
         seen.add(line)
         deduped.append(line)
 
-    output_file = write_output(deduped, output_dir, platform)
+    output_file, latest_file = write_output(deduped, output_dir, latest_dir, platform)
     command_result = maybe_run_v2(v2_command, output_file, platform)
     return {
         "platform": platform,
@@ -250,6 +258,7 @@ def process_single_platform(lines, output_dir, platform, v2_command):
         "duplicate_lines_removed": duplicates,
         "final_lines": len(deduped),
         "output_file": str(output_file),
+        "latest_file": str(latest_file),
         "v2_command_result": command_result,
     }
 
@@ -289,12 +298,13 @@ def main():
             if not lines:
                 continue
             split_reports.append(
-                process_single_platform(lines, args.output_dir, group_platform, args.v2_command)
+                process_single_platform(lines, args.output_dir, args.latest_dir, group_platform, args.v2_command)
             )
         output_file = split_reports[0]["output_file"] if split_reports else ""
+        latest_file = split_reports[0]["latest_file"] if split_reports else ""
         command_result = {"ran": any(item["v2_command_result"]["ran"] for item in split_reports)}
     else:
-        output_file = write_output(kept_lines, args.output_dir, platform)
+        output_file, latest_file = write_output(kept_lines, args.output_dir, args.latest_dir, platform)
         command_result = maybe_run_v2(args.v2_command, output_file, platform)
 
     report = {
@@ -310,6 +320,7 @@ def main():
         "dedupe_stats": dedupe_stats,
         "final_lines": len(kept_lines),
         "output_file": str(output_file) if output_file else "",
+        "latest_file": str(latest_file) if latest_file else "",
         "split_outputs": split_reports,
         "v2_command_result": command_result,
     }
@@ -322,6 +333,7 @@ def main():
             "last_source_sha256": report["source_sha256"],
             "last_platform": report["platform"],
             "last_output_file": report["output_file"],
+            "last_latest_file": report["latest_file"],
             "last_final_lines": report["final_lines"],
         },
     )
