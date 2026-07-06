@@ -198,16 +198,15 @@ Gợi ý cron chạy mỗi ngày lúc 08:00:
 ## 11) Làm sạch dữ liệu account cho V2 (auto-run)
 
 Script `scripts/clean_accounts_for_v2.py`:
-- parse dữ liệu `user:password`
-- bỏ dòng lỗi / user trống / pass trống / pass nullish
-- loại trùng exact
-- gộp trùng theo user và giữ mật khẩu mạnh hơn
-- xuất file sạch cho V2 (`.csv` + `.json`)
+- chỉ loại trùng lặp **exact line**
+- giữ nguyên định dạng từng dòng còn lại để tránh sai lệch khi import vào node V2
+- xuất file `.txt` sẵn cho luồng **thêm tài khoản hàng loạt**
+- ràng buộc đúng nền tảng (`--platform`) hoặc suy luận từ tên file (`accounts.sapo.vn...`)
 
 Chạy 1 file cụ thể:
 
 ```bash
-python3 scripts/clean_accounts_for_v2.py --input-file /path/to/input.txt
+python3 scripts/clean_accounts_for_v2.py --input-file /path/to/input.txt --platform sapo
 ```
 
 Auto chạy file `.txt` mới nhất trong uploads:
@@ -216,10 +215,10 @@ Auto chạy file `.txt` mới nhất trong uploads:
 python3 scripts/clean_accounts_for_v2.py --auto
 ```
 
-Auto + bỏ mật khẩu yếu:
+Auto + chỉ định nền tảng bắt buộc đúng:
 
 ```bash
-python3 scripts/clean_accounts_for_v2.py --auto --drop-weak-passwords
+python3 scripts/clean_accounts_for_v2.py --auto --platform sapo
 ```
 
 Auto + chạy lệnh V2 ngay sau khi làm sạch:
@@ -227,3 +226,7 @@ Auto + chạy lệnh V2 ngay sau khi làm sạch:
 ```bash
 python3 scripts/clean_accounts_for_v2.py --auto --v2-command "/home/ubuntu/run_v2.sh"
 ```
+
+Khi `--v2-command` được gọi, script set:
+- `V2_BULK_ACCOUNTS_FILE`: path file `.txt` đã dedupe
+- `V2_BULK_PLATFORM`: nền tảng đích (sapo/pancake/shopee/tiktokshop/ghn)
