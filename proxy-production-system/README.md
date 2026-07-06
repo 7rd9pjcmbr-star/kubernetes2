@@ -318,3 +318,17 @@ python3 scripts/sanitize_profile_json.py \
   --allow-trailing-fragment \
   --output-file /tmp/profile.sanitized.json
 ```
+
+## 15) Build credentials cho order scanner
+
+Script `scripts/build_scanner_credentials.py` tạo các file `.json` credentials từ
+`/tmp/v2-cleaned/latest/v2_bulk_accounts_<platform>.txt` để scanner có input.
+
+Ví dụ:
+
+```bash
+python3 scripts/build_scanner_credentials.py --clear-output --max-per-platform 300
+```
+
+Output mặc định:
+- `/home/ubuntu/scan-tool-integration/credentials/*.json`
