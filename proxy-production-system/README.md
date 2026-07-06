@@ -123,4 +123,19 @@ Ghi báo cáo JSON:
 python3 scripts/check_vn_platform_apis.py --output /tmp/platform-api-report.json
 ```
 
-Script hiện kiểm tra: Pancake POS, GHTK, Nhanh.vn POS v3, Sapo OAuth docs, Haravan.
+Chạy thêm authenticated smoke test (đọc token từ biến môi trường):
+
+```bash
+set -a
+source scripts/.env.vn-platforms.example
+set +a
+python3 scripts/check_vn_platform_apis.py --authenticated
+```
+
+Yêu cầu fail nếu thiếu credential:
+
+```bash
+python3 scripts/check_vn_platform_apis.py --authenticated --require-auth
+```
+
+Script hiện kiểm tra: Pancake POS, GHTK, Nhanh.vn POS v3, Sapo, Haravan.

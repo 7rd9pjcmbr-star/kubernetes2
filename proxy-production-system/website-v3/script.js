@@ -84,5 +84,6 @@ if (apiTable) {
 }
 
 if (apiUpdated) {
-  apiUpdated.textContent = "Cap nhat lan cuoi: 2026-07-06 05:06 UTC";
+  apiUpdated.textContent =
+    "Cap nhat lan cuoi: 2026-07-06 05:09 UTC. Ho tro them authenticated smoke test qua scripts/check_vn_platform_apis.py --authenticated.";
 }
