@@ -251,6 +251,16 @@ python3 scripts/clean_accounts_for_v2.py \
   --v2-command "/home/ubuntu/run_v2.sh"
 ```
 
+Chỉ đẩy 1 nền tảng duy nhất:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py \
+  --input-file /path/to/mixed_cookie.txt \
+  --split-by-platform \
+  --only-platform tiktokshop \
+  --v2-command "/home/ubuntu/run_v2.sh"
+```
+
 ## 12) Pancake OAuth callback helper (lấy code -> đổi token)
 
 Script `scripts/pancake_oauth_helper.py` giúp:

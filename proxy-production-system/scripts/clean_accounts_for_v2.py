@@ -53,6 +53,11 @@ def parse_args():
         action="store_true",
         help="When splitting, skip unknown platform bucket.",
     )
+    parser.add_argument(
+        "--only-platform",
+        default="",
+        help="Process only one platform bucket (sapo/pancake/shopee/tiktokshop/ghn/unknown).",
+    )
     parser.add_argument("--force", action="store_true", help="Process even if unchanged in auto mode.")
     return parser.parse_args()
 
@@ -253,6 +258,9 @@ def main():
     args = parse_args()
     source_file = choose_input_file(args)
     source_sha = sha256_file(source_file)
+    only_platform = args.only_platform.strip().lower() if args.only_platform else ""
+    if only_platform and only_platform not in SUPPORTED_PLATFORMS:
+        raise ValueError(f"Unsupported only-platform: {args.only_platform}")
     platform, inferred_platform, detected_content_platforms = resolve_platform(args.platform, source_file)
 
     state = load_state(args.state_file)
@@ -272,6 +280,8 @@ def main():
         grouped = split_lines_by_platform(kept_lines)
         # If caller passed --platform, only keep that group.
         target_platforms = [platform] if args.platform else sorted(grouped.keys())
+        if only_platform:
+            target_platforms = [item for item in target_platforms if item == only_platform]
         if args.exclude_unknown:
             target_platforms = [item for item in target_platforms if item != "unknown"]
         for group_platform in target_platforms:
@@ -296,6 +306,7 @@ def main():
         "detected_content_platforms": detected_content_platforms,
         "dedupe_mode": args.dedupe_mode,
         "split_by_platform": args.split_by_platform,
+        "only_platform": only_platform,
         "dedupe_stats": dedupe_stats,
         "final_lines": len(kept_lines),
         "output_file": str(output_file) if output_file else "",
