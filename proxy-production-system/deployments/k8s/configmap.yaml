@@ -5,6 +5,7 @@ metadata:
 data:
   PROXY_LISTEN_ADDRESS: ":8080"
   PROXY_UPSTREAMS: "http://upstream-api.default.svc.cluster.local:8080"
+  PROXY_STATIC_ROOT: "/static"
   PROXY_READ_TIMEOUT: "15s"
   PROXY_WRITE_TIMEOUT: "15s"
   PROXY_IDLE_TIMEOUT: "60s"

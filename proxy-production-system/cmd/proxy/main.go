@@ -34,7 +34,7 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	handler, err := proxy.NewRoundRobinHandler(cfg.Upstreams)
+	handler, err := proxy.NewRoundRobinHandler(cfg.Upstreams, cfg.StaticRoot)
 	if err != nil {
 		log.Fatalf("failed to build proxy handler: %v", err)
 	}
@@ -47,7 +47,7 @@ func main() {
 		IdleTimeout:  cfg.IdleTimeout,
 	}
 
-	log.Printf("proxy starting listen=%s upstreams=%v", cfg.ListenAddress, cfg.Upstreams)
+	log.Printf("proxy starting listen=%s upstreams=%v static_root=%q", cfg.ListenAddress, cfg.Upstreams, cfg.StaticRoot)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("proxy server failed: %v", err)

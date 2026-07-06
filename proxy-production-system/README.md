@@ -48,6 +48,7 @@ curl -i http://localhost:8080
 | Biến | Bắt buộc | Mặc định | Ý nghĩa |
 |---|---|---|---|
 | `PROXY_UPSTREAMS` | Có | - | Danh sách upstream dạng CSV (`http://a:8081,http://b:8082`) |
+| `PROXY_STATIC_ROOT` | Không | _(trống)_ | Thư mục static root để bật route UI (`/v2`, `/v3`) |
 | `PROXY_LISTEN_ADDRESS` | Không | `:8080` | Địa chỉ listen của proxy |
 | `PROXY_READ_TIMEOUT` | Không | `15s` | Read timeout cho HTTP server |
 | `PROXY_WRITE_TIMEOUT` | Không | `15s` | Write timeout cho HTTP server |
@@ -101,3 +102,9 @@ python3 -m http.server 8082
 ```
 
 Sau đó mở: `http://localhost:8082`
+
+Khi chạy qua image Docker mặc định của dự án, static assets được mount tại `/static`
+và có thể truy cập trên cùng domain:
+
+- V2: `http://<host>:8080/v2/`
+- V3: `http://<host>:8080/v3/`
