@@ -194,3 +194,36 @@ Gợi ý cron chạy mỗi ngày lúc 08:00:
 ```cron
 0 8 * * * cd /path/to/proxy-production-system && /usr/bin/env bash -lc 'source scripts/.env.vn-platforms.example && python3 scripts/daily_pancake_orders_to_telegram.py'
 ```
+
+## 11) Làm sạch dữ liệu account cho V2 (auto-run)
+
+Script `scripts/clean_accounts_for_v2.py`:
+- parse dữ liệu `user:password`
+- bỏ dòng lỗi / user trống / pass trống / pass nullish
+- loại trùng exact
+- gộp trùng theo user và giữ mật khẩu mạnh hơn
+- xuất file sạch cho V2 (`.csv` + `.json`)
+
+Chạy 1 file cụ thể:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py --input-file /path/to/input.txt
+```
+
+Auto chạy file `.txt` mới nhất trong uploads:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py --auto
+```
+
+Auto + bỏ mật khẩu yếu:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py --auto --drop-weak-passwords
+```
+
+Auto + chạy lệnh V2 ngay sau khi làm sạch:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py --auto --v2-command "/home/ubuntu/run_v2.sh"
+```
