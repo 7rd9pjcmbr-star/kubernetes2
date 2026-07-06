@@ -332,3 +332,12 @@ python3 scripts/build_scanner_credentials.py --clear-output --max-per-platform 3
 
 Output mặc định:
 - `/home/ubuntu/scan-tool-integration/credentials/*.json`
+
+Script cũng tự sinh cookie bundle cho nền tảng cookie-based (nếu có dữ liệu tab-cookie):
+- `<platform>_cookie_bundle.json`
+
+Chạy scanner platform-aware:
+
+```bash
+python3 scripts/order_scanner_runner.py --credentials-dir /home/ubuntu/scan-tool-integration/credentials
+```

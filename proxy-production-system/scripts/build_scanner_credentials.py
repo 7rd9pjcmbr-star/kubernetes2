@@ -3,6 +3,7 @@
 
 import argparse
 import json
+from collections import OrderedDict
 from pathlib import Path
 
 
@@ -62,6 +63,48 @@ def load_pairs(path, limit):
     return pairs
 
 
+def detect_cookie_lines(path):
+    lines = [ln for ln in path.read_text(encoding="utf-8", errors="ignore").splitlines() if ln.strip()]
+    if not lines:
+        return []
+    tab_count = sum("\t" in ln for ln in lines)
+    if tab_count < max(1, len(lines) // 2):
+        return []
+    return lines
+
+
+def build_cookie_bundle(path):
+    lines = detect_cookie_lines(path)
+    if not lines:
+        return None
+
+    cookies = OrderedDict()
+    domains = set()
+    for line in lines:
+        parts = line.split("\t")
+        if len(parts) < 7:
+            continue
+        domain = parts[0].strip()
+        name = parts[5].strip()
+        value = parts[6].strip()
+        if not name:
+            continue
+        cookies[name] = value
+        if domain:
+            domains.add(domain)
+
+    if not cookies:
+        return None
+
+    cookie_header = "; ".join(f"{k}={v}" for k, v in cookies.items())
+    return {
+        "credential_type": "cookie_bundle",
+        "cookie_count": len(cookies),
+        "domains": sorted(domains),
+        "cookie_header": cookie_header,
+    }
+
+
 def main():
     args = parse_args()
     latest_dir = Path(args.latest_dir)
@@ -82,11 +125,26 @@ def main():
             summary[platform] = {"source_found": False, "written": 0}
             continue
 
+        cookie_bundle = build_cookie_bundle(source)
         pairs = load_pairs(source, args.max_per_platform)
         count = 0
+        cookie_written = 0
+        if cookie_bundle:
+            payload = {
+                "platform": platform,
+                "source_file": str(source),
+                **cookie_bundle,
+            }
+            target = output_dir / f"{platform}_cookie_bundle.json"
+            target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            count += 1
+            written += 1
+            cookie_written = 1
+
         for idx, (username, password) in enumerate(pairs, start=1):
             payload = {
                 "platform": platform,
+                "credential_type": "account_pair",
                 "username": username,
                 "password": password,
                 "source_file": str(source),
@@ -95,7 +153,12 @@ def main():
             target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             count += 1
             written += 1
-        summary[platform] = {"source_found": True, "written": count}
+        summary[platform] = {
+            "source_found": True,
+            "written": count,
+            "cookie_bundle_written": bool(cookie_written),
+            "account_pairs_written": len(pairs),
+        }
 
     print(
         json.dumps(
