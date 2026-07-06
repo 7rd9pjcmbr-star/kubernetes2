@@ -291,3 +291,27 @@ Ví dụ:
 python3 scripts/tiktok_seller_url_helper.py \
   --url 'https://seller-vn.tiktok.com/services/market/service-detail/...&state=BASE64...'
 ```
+
+## 14) Sanitize JSON hồ sơ trước khi đưa vào V2
+
+Script `scripts/sanitize_profile_json.py`:
+- ẩn/mask trường nhạy cảm (password, token, email, phone, ip, ...)
+- bỏ các block quá nhạy cảm (`metadata`, `socialMedia`, `guid`, `uuid`)
+- hỗ trợ best-effort parse cho JSON bị cắt dở (`--allow-trailing-fragment`)
+
+Ví dụ từ file:
+
+```bash
+python3 scripts/sanitize_profile_json.py \
+  --input-file /path/to/profile.json \
+  --output-file /tmp/profile.sanitized.json
+```
+
+Ví dụ cho payload dở:
+
+```bash
+python3 scripts/sanitize_profile_json.py \
+  --input-file /path/to/profile.partial.json \
+  --allow-trailing-fragment \
+  --output-file /tmp/profile.sanitized.json
+```
