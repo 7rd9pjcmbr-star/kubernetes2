@@ -230,3 +230,20 @@ python3 scripts/clean_accounts_for_v2.py --auto --v2-command "/home/ubuntu/run_v
 Khi `--v2-command` được gọi, script set:
 - `V2_BULK_ACCOUNTS_FILE`: path file `.txt` đã dedupe
 - `V2_BULK_PLATFORM`: nền tảng đích (sapo/pancake/shopee/tiktokshop/ghn)
+
+## 12) Pancake OAuth callback helper (lấy code -> đổi token)
+
+Script `scripts/pancake_oauth_helper.py` giúp:
+- parse callback URL sau khi login OAuth
+- decode/validate `state` (base64 JSON)
+- in sẵn lệnh `curl` để đổi `code` thành token
+
+Ví dụ:
+
+```bash
+python3 scripts/pancake_oauth_helper.py \
+  --callback-url 'https://pancake.vn/api/v1/users/pancake_id_login_success?code=YOUR_CODE&state=BASE64_STATE' \
+  --client-id '53e2d5e33a8940f4a30ba22a4011e52a' \
+  --client-secret 'YOUR_CLIENT_SECRET' \
+  --require-pos-login
+```
