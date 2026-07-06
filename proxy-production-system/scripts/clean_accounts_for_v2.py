@@ -101,8 +101,36 @@ def infer_platform_from_filename(path):
     return "unknown"
 
 
+def detect_content_platforms(source_file):
+    text = source_file.read_text(encoding="utf-8", errors="ignore")
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    detected = set()
+
+    # Cookie Netscape format usually has tab-separated fields and domain in first column.
+    cookie_like = sum("\t" in ln for ln in lines) >= max(1, len(lines) // 2)
+    if not cookie_like:
+        return detected
+
+    for line in lines:
+        domain = line.split("\t", 1)[0].lower().strip()
+        if not domain:
+            continue
+        if "pancake" in domain or "pages.fm" in domain:
+            detected.add("pancake")
+        if "sapo" in domain:
+            detected.add("sapo")
+        if "shopee" in domain:
+            detected.add("shopee")
+        if "tiktok" in domain:
+            detected.add("tiktokshop")
+        if "ghn.vn" in domain or "giaohangtietkiem" in domain or ".ghtk.vn" in domain:
+            detected.add("ghn")
+    return detected
+
+
 def resolve_platform(expected, source_file):
     inferred = infer_platform_from_filename(source_file)
+    content_platforms = detect_content_platforms(source_file)
     if expected:
         platform = expected.strip().lower()
         if platform not in SUPPORTED_PLATFORMS:
@@ -111,8 +139,16 @@ def resolve_platform(expected, source_file):
             raise ValueError(
                 f"Platform mismatch: expected={platform}, inferred_from_file={inferred}, file={source_file.name}"
             )
-        return platform, inferred
-    return inferred, inferred
+        if content_platforms and platform not in content_platforms:
+            raise ValueError(
+                f"Platform mismatch by content: expected={platform}, "
+                f"detected_content_platforms={sorted(content_platforms)}"
+            )
+        return platform, inferred, sorted(content_platforms)
+    auto_platform = inferred if inferred != "unknown" else (
+        sorted(content_platforms)[0] if len(content_platforms) == 1 else "unknown"
+    )
+    return auto_platform, inferred, sorted(content_platforms)
 
 
 def dedupe_exact_lines(source_file):
@@ -159,7 +195,7 @@ def main():
     args = parse_args()
     source_file = choose_input_file(args)
     source_sha = sha256_file(source_file)
-    platform, inferred_platform = resolve_platform(args.platform, source_file)
+    platform, inferred_platform, detected_content_platforms = resolve_platform(args.platform, source_file)
 
     state = load_state(args.state_file)
     if args.auto and not args.force:
@@ -181,6 +217,7 @@ def main():
         "source_sha256": source_sha,
         "platform": platform,
         "inferred_platform": inferred_platform,
+        "detected_content_platforms": detected_content_platforms,
         "dedupe_mode": args.dedupe_mode,
         "dedupe_stats": dedupe_stats,
         "final_lines": len(kept_lines),

@@ -202,6 +202,7 @@ Script `scripts/clean_accounts_for_v2.py`:
 - giữ nguyên định dạng từng dòng còn lại để tránh sai lệch khi import vào node V2
 - xuất file `.txt` sẵn cho luồng **thêm tài khoản hàng loạt**
 - ràng buộc đúng nền tảng (`--platform`) hoặc suy luận từ tên file (`accounts.sapo.vn...`)
+- với file cookie (tab-separated), script còn kiểm tra nền tảng theo domain trong nội dung để tránh đẩy nhầm nền tảng
 
 Chạy 1 file cụ thể:
 
