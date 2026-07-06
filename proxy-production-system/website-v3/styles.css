@@ -154,6 +154,11 @@ h2 {
   font-size: clamp(1.4rem, 2.3vw, 2rem);
 }
 
+.section-intro {
+  color: var(--muted);
+  max-width: 72ch;
+}
+
 .grid {
   display: grid;
   gap: 16px;
@@ -193,6 +198,76 @@ h2 {
   display: grid;
   gap: 8px;
   color: var(--muted);
+}
+
+.table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.status-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+  background: var(--panel);
+}
+
+.status-table th,
+.status-table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border), transparent 22%);
+  vertical-align: top;
+}
+
+.status-table th {
+  color: #eff4fd;
+  font-size: 0.92rem;
+}
+
+.status-table td {
+  color: var(--muted);
+}
+
+.status-table tr:last-child td {
+  border-bottom: none;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.83rem;
+  color: #dce7f8;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.badge-ok {
+  background: color-mix(in srgb, #31d796, transparent 75%);
+  color: #b4f5dd;
+}
+
+.badge-warning {
+  background: color-mix(in srgb, #f7be48, transparent 75%);
+  color: #fde7b3;
+}
+
+.badge-error {
+  background: color-mix(in srgb, #ff6f85, transparent 78%);
+  color: #ffd2da;
+}
+
+.muted {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 code {

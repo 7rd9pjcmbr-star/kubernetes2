@@ -108,3 +108,19 @@ và có thể truy cập trên cùng domain:
 
 - V2: `http://<host>:8080/v2/`
 - V3: `http://<host>:8080/v3/`
+
+## 8) Kiểm tra API các nền tảng TMDT VN
+
+Script kiểm tra nhanh khả dụng endpoint và hành vi auth-gate:
+
+```bash
+python3 scripts/check_vn_platform_apis.py
+```
+
+Ghi báo cáo JSON:
+
+```bash
+python3 scripts/check_vn_platform_apis.py --output /tmp/platform-api-report.json
+```
+
+Script hiện kiểm tra: Pancake POS, GHTK, Nhanh.vn POS v3, Sapo OAuth docs, Haravan.
