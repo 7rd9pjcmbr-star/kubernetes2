@@ -2,9 +2,12 @@
 """Check connectivity and authenticated smoke tests for VN ecommerce platform APIs."""
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -54,6 +57,30 @@ PUBLIC_CHECKS = [
         "expected_substring": "",
         "notes": "Requires Authorization: Bearer <token>.",
     },
+    {
+        "platform": "TikTok Shop",
+        "method": "GET",
+        "url": "https://open-api.tiktokglobalshop.com/authorization/202309/shops",
+        "expected_http": [400],
+        "expected_substring": "Invalid credentials",
+        "notes": "Endpoint reachable; requires app_key/sign/timestamp and x-tts-access-token.",
+    },
+    {
+        "platform": "Shopee",
+        "method": "GET",
+        "url": "https://partner.shopeemobile.com/api/v2/shop/get_shop_info",
+        "expected_http": [200],
+        "expected_substring": "partner_id",
+        "notes": "Endpoint reachable; requires partner_id/timestamp/sign/access_token/shop_id.",
+    },
+    {
+        "platform": "GHN",
+        "method": "GET",
+        "url": "https://dev-online-gateway.ghn.vn/shiip/public-api/master-data/province",
+        "expected_http": [401],
+        "expected_substring": "Authorization header is required",
+        "notes": "Endpoint reachable; requires Token (and usually ShopId for order APIs).",
+    },
 ]
 
 
@@ -88,9 +115,11 @@ def perform_check(item, timeout):
 
     expected_http = item["expected_http"]
     expected_substring = item.get("expected_substring", "")
+    disallow_substrings = item.get("disallow_substrings", [])
     http_ok = status in expected_http if status is not None else False
     body_ok = expected_substring.lower() in body.lower() if expected_substring else True
-    passed = error is None and http_ok and body_ok
+    disallow_ok = all(token.lower() not in body.lower() for token in disallow_substrings)
+    passed = error is None and http_ok and body_ok and disallow_ok
 
     return {
         "platform": item["platform"],
@@ -99,10 +128,19 @@ def perform_check(item, timeout):
         "status_code": status,
         "expected_http": expected_http,
         "expected_substring": expected_substring,
+        "disallow_substrings": disallow_substrings,
         "passed": passed,
         "error": error,
         "notes": item["notes"],
     }
+
+
+def _tiktok_sign(path, query_params, app_secret):
+    sorted_keys = sorted(query_params)
+    flattened = "".join(f"{key}{query_params[key]}" for key in sorted_keys)
+    message = f"{app_secret}{path}{flattened}{app_secret}".encode("utf-8")
+    signature = hmac.new(app_secret.encode("utf-8"), message, hashlib.sha256).hexdigest().upper()
+    return signature
 
 
 def build_authenticated_checks():
@@ -244,6 +282,134 @@ def build_authenticated_checks():
                 "notes": "Missing Haravan credential.",
             }
         )
+
+    tiktok_app_key = os.getenv("TIKTOKSHOP_APP_KEY", "").strip()
+    tiktok_app_secret = os.getenv("TIKTOKSHOP_APP_SECRET", "").strip()
+    tiktok_access_token = os.getenv("TIKTOKSHOP_ACCESS_TOKEN", "").strip()
+    if tiktok_app_key and tiktok_app_secret and tiktok_access_token:
+        path = "/authorization/202309/shops"
+        timestamp = int(time.time())
+        params = {"app_key": tiktok_app_key, "timestamp": str(timestamp)}
+        sign = _tiktok_sign(path, params, tiktok_app_secret)
+        params["sign"] = sign
+        tiktok_url = "https://open-api.tiktokglobalshop.com" + path + "?" + urllib.parse.urlencode(params)
+        checks.append(
+            {
+                "platform": "TikTok Shop",
+                "method": "GET",
+                "url": tiktok_url,
+                "headers": {"x-tts-access-token": tiktok_access_token, "Content-Type": "application/json"},
+                "payload": None,
+                "expected_http": [200],
+                "expected_substring": "",
+                "disallow_substrings": ["Invalid credentials", "invalid sign"],
+                "notes": "Authenticated call with app_key/app_secret/access_token signature.",
+                "missing_env": [],
+            }
+        )
+    else:
+        missing = []
+        if not tiktok_app_key:
+            missing.append("TIKTOKSHOP_APP_KEY")
+        if not tiktok_app_secret:
+            missing.append("TIKTOKSHOP_APP_SECRET")
+        if not tiktok_access_token:
+            missing.append("TIKTOKSHOP_ACCESS_TOKEN")
+        checks.append(
+            {
+                "platform": "TikTok Shop",
+                "missing_env": missing,
+                "notes": "Missing TikTok Shop credentials.",
+            }
+        )
+
+    shopee_partner_id = os.getenv("SHOPEE_PARTNER_ID", "").strip()
+    shopee_partner_key = os.getenv("SHOPEE_PARTNER_KEY", "").strip()
+    shopee_shop_id = os.getenv("SHOPEE_SHOP_ID", "").strip()
+    shopee_access_token = os.getenv("SHOPEE_ACCESS_TOKEN", "").strip()
+    if shopee_partner_id and shopee_partner_key and shopee_shop_id and shopee_access_token:
+        shopee_path = "/api/v2/shop/get_shop_info"
+        timestamp = int(time.time())
+        base = f"{shopee_partner_id}{shopee_path}{timestamp}{shopee_access_token}{shopee_shop_id}"
+        sign = hmac.new(
+            shopee_partner_key.encode("utf-8"), base.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        shopee_url = (
+            "https://partner.shopeemobile.com"
+            + shopee_path
+            + "?"
+            + urllib.parse.urlencode(
+                {
+                    "partner_id": shopee_partner_id,
+                    "timestamp": str(timestamp),
+                    "access_token": shopee_access_token,
+                    "shop_id": shopee_shop_id,
+                    "sign": sign,
+                }
+            )
+        )
+        checks.append(
+            {
+                "platform": "Shopee",
+                "method": "GET",
+                "url": shopee_url,
+                "headers": {"Content-Type": "application/json"},
+                "payload": None,
+                "expected_http": [200],
+                "expected_substring": "",
+                "disallow_substrings": ["error_auth", "error_sign", "error_param"],
+                "notes": "Authenticated call with partner_id/partner_key/shop_id/access_token.",
+                "missing_env": [],
+            }
+        )
+    else:
+        missing = []
+        if not shopee_partner_id:
+            missing.append("SHOPEE_PARTNER_ID")
+        if not shopee_partner_key:
+            missing.append("SHOPEE_PARTNER_KEY")
+        if not shopee_shop_id:
+            missing.append("SHOPEE_SHOP_ID")
+        if not shopee_access_token:
+            missing.append("SHOPEE_ACCESS_TOKEN")
+        checks.append(
+            {
+                "platform": "Shopee",
+                "missing_env": missing,
+                "notes": "Missing Shopee credentials.",
+            }
+        )
+
+    ghn_token = os.getenv("GHN_API_TOKEN", "").strip()
+    ghn_shop_id = os.getenv("GHN_SHOP_ID", "").strip()
+    if ghn_token and ghn_shop_id:
+        checks.append(
+            {
+                "platform": "GHN",
+                "method": "GET",
+                "url": "https://dev-online-gateway.ghn.vn/shiip/public-api/master-data/province",
+                "headers": {"Token": ghn_token, "ShopId": ghn_shop_id},
+                "payload": None,
+                "expected_http": [200],
+                "expected_substring": "",
+                "disallow_substrings": ["Authorization header is required", '"code":401'],
+                "notes": "Authenticated call with GHN token and shop id.",
+                "missing_env": [],
+            }
+        )
+    else:
+        missing = []
+        if not ghn_token:
+            missing.append("GHN_API_TOKEN")
+        if not ghn_shop_id:
+            missing.append("GHN_SHOP_ID")
+        checks.append(
+            {
+                "platform": "GHN",
+                "missing_env": missing,
+                "notes": "Missing GHN credentials.",
+            }
+        )
     return checks
 
 
@@ -267,9 +433,11 @@ def perform_authenticated_check(item, timeout):
     )
     expected_http = item["expected_http"]
     expected_substring = item.get("expected_substring", "")
+    disallow_substrings = item.get("disallow_substrings", [])
     http_ok = status in expected_http if status is not None else False
     body_ok = expected_substring.lower() in body.lower() if expected_substring else True
-    passed = error is None and http_ok and body_ok
+    disallow_ok = all(token.lower() not in body.lower() for token in disallow_substrings)
+    passed = error is None and http_ok and body_ok and disallow_ok
 
     return {
         "platform": item["platform"],
@@ -279,6 +447,7 @@ def perform_authenticated_check(item, timeout):
         "status_code": status,
         "expected_http": expected_http,
         "expected_substring": expected_substring,
+        "disallow_substrings": disallow_substrings,
         "passed": passed,
         "skipped": False,
         "error": error,

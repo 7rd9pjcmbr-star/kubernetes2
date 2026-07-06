@@ -41,6 +41,27 @@ const platformApiStatus = [
     result: "Can ket noi. API yeu cau Authorization: Bearer <token>.",
     level: "ok",
   },
+  {
+    platform: "TikTok Shop",
+    endpoint: "https://open-api.tiktokglobalshop.com/authorization/202309/shops",
+    http: "400",
+    result: "Can ket noi. API yeu cau app_key + sign + timestamp + x-tts-access-token.",
+    level: "ok",
+  },
+  {
+    platform: "Shopee",
+    endpoint: "https://partner.shopeemobile.com/api/v2/shop/get_shop_info",
+    http: "200",
+    result: "Can ket noi. API bao thieu partner_id neu chua ky request.",
+    level: "ok",
+  },
+  {
+    platform: "GHN",
+    endpoint: "https://dev-online-gateway.ghn.vn/shiip/public-api/master-data/province",
+    http: "401",
+    result: "Can ket noi. API yeu cau Token (va thuong dung them ShopId).",
+    level: "ok",
+  },
 ];
 
 if (yearEl) {
@@ -85,5 +106,5 @@ if (apiTable) {
 
 if (apiUpdated) {
   apiUpdated.textContent =
-    "Cap nhat lan cuoi: 2026-07-06 05:09 UTC. Ho tro them authenticated smoke test qua scripts/check_vn_platform_apis.py --authenticated.";
+    "Cap nhat lan cuoi: 2026-07-06 05:14 UTC. Da bo sung TikTok Shop, Shopee, GHN va authenticated smoke test qua scripts/check_vn_platform_apis.py --authenticated.";
 }

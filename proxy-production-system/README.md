@@ -138,4 +138,4 @@ Yêu cầu fail nếu thiếu credential:
 python3 scripts/check_vn_platform_apis.py --authenticated --require-auth
 ```
 
-Script hiện kiểm tra: Pancake POS, GHTK, Nhanh.vn POS v3, Sapo, Haravan.
+Script hiện kiểm tra: Pancake POS, GHTK, Nhanh.vn POS v3, Sapo, Haravan, TikTok Shop, Shopee, GHN.
