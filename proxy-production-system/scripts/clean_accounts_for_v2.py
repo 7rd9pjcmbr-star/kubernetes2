@@ -43,6 +43,11 @@ def parse_args():
         default="",
         help="Optional command after cleaning. Receives env V2_BULK_ACCOUNTS_FILE and V2_BULK_PLATFORM.",
     )
+    parser.add_argument(
+        "--split-by-platform",
+        action="store_true",
+        help="Split mixed cookie file into per-platform outputs and process each separately.",
+    )
     parser.add_argument("--force", action="store_true", help="Process even if unchanged in auto mode.")
     return parser.parse_args()
 
@@ -167,6 +172,31 @@ def dedupe_exact_lines(source_file):
     return kept, {"total_lines": len(lines), "duplicate_lines_removed": duplicates}
 
 
+def detect_line_platform(line):
+    if "\t" not in line:
+        return "unknown"
+    domain = line.split("\t", 1)[0].lower().strip()
+    if "pancake" in domain or "pages.fm" in domain:
+        return "pancake"
+    if "sapo" in domain:
+        return "sapo"
+    if "shopee" in domain:
+        return "shopee"
+    if "tiktok" in domain:
+        return "tiktokshop"
+    if "ghn.vn" in domain or "giaohangtietkiem" in domain or ".ghtk.vn" in domain:
+        return "ghn"
+    return "unknown"
+
+
+def split_lines_by_platform(lines):
+    grouped = {}
+    for line in lines:
+        platform = detect_line_platform(line)
+        grouped.setdefault(platform, []).append(line)
+    return grouped
+
+
 def write_output(kept_lines, output_dir, platform):
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -191,6 +221,29 @@ def maybe_run_v2(command, output_file, platform):
     }
 
 
+def process_single_platform(lines, output_dir, platform, v2_command):
+    deduped = []
+    seen = set()
+    duplicates = 0
+    for line in lines:
+        if line in seen:
+            duplicates += 1
+            continue
+        seen.add(line)
+        deduped.append(line)
+
+    output_file = write_output(deduped, output_dir, platform)
+    command_result = maybe_run_v2(v2_command, output_file, platform)
+    return {
+        "platform": platform,
+        "input_lines": len(lines),
+        "duplicate_lines_removed": duplicates,
+        "final_lines": len(deduped),
+        "output_file": str(output_file),
+        "v2_command_result": command_result,
+    }
+
+
 def main():
     args = parse_args()
     source_file = choose_input_file(args)
@@ -208,8 +261,24 @@ def main():
             return 0
 
     kept_lines, dedupe_stats = dedupe_exact_lines(source_file)
-    output_file = write_output(kept_lines, args.output_dir, platform)
-    command_result = maybe_run_v2(args.v2_command, output_file, platform)
+
+    split_reports = []
+    if args.split_by_platform:
+        grouped = split_lines_by_platform(kept_lines)
+        # If caller passed --platform, only keep that group.
+        target_platforms = [platform] if args.platform else sorted(grouped.keys())
+        for group_platform in target_platforms:
+            lines = grouped.get(group_platform, [])
+            if not lines:
+                continue
+            split_reports.append(
+                process_single_platform(lines, args.output_dir, group_platform, args.v2_command)
+            )
+        output_file = split_reports[0]["output_file"] if split_reports else ""
+        command_result = {"ran": any(item["v2_command_result"]["ran"] for item in split_reports)}
+    else:
+        output_file = write_output(kept_lines, args.output_dir, platform)
+        command_result = maybe_run_v2(args.v2_command, output_file, platform)
 
     report = {
         "processed_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -219,9 +288,11 @@ def main():
         "inferred_platform": inferred_platform,
         "detected_content_platforms": detected_content_platforms,
         "dedupe_mode": args.dedupe_mode,
+        "split_by_platform": args.split_by_platform,
         "dedupe_stats": dedupe_stats,
         "final_lines": len(kept_lines),
-        "output_file": str(output_file),
+        "output_file": str(output_file) if output_file else "",
+        "split_outputs": split_reports,
         "v2_command_result": command_result,
     }
 

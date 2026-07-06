@@ -232,6 +232,15 @@ Khi `--v2-command` được gọi, script set:
 - `V2_BULK_ACCOUNTS_FILE`: path file `.txt` đã dedupe
 - `V2_BULK_PLATFORM`: nền tảng đích (sapo/pancake/shopee/tiktokshop/ghn)
 
+Tách file hỗn hợp thành từng nền tảng và đẩy từng file vào V2:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py \
+  --input-file /path/to/mixed_cookie.txt \
+  --split-by-platform \
+  --v2-command "/home/ubuntu/run_v2.sh"
+```
+
 ## 12) Pancake OAuth callback helper (lấy code -> đổi token)
 
 Script `scripts/pancake_oauth_helper.py` giúp:
