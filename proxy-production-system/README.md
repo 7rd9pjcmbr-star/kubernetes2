@@ -160,3 +160,37 @@ Tuỳ chọn:
 ```bash
 python3 scripts/monitor_pancake_orders.py --api-key your_key --poll-seconds 30 --limit 5
 ```
+
+## 10) Gửi Excel Telegram mỗi ngày 1 lần (đơn 24h gần nhất)
+
+Script này:
+- chỉ lấy đơn hàng trong **1 ngày gần nhất** (24 giờ gần nhất)
+- chỉ gửi báo cáo **1 lần/ngày** (dựa trên state file)
+- gửi file `.xlsx` lên Telegram
+
+Chuẩn bị:
+
+```bash
+pip install openpyxl
+```
+
+Chạy thủ công:
+
+```bash
+PANCAKE_POS_API_KEY=your_key \
+TELEGRAM_BOT_TOKEN=your_bot_token \
+TELEGRAM_CHAT_ID=your_chat_id \
+python3 scripts/daily_pancake_orders_to_telegram.py
+```
+
+Chạy ép gửi lại trong ngày (bỏ qua khóa 1 lần/ngày):
+
+```bash
+python3 scripts/daily_pancake_orders_to_telegram.py --force
+```
+
+Gợi ý cron chạy mỗi ngày lúc 08:00:
+
+```cron
+0 8 * * * cd /path/to/proxy-production-system && /usr/bin/env bash -lc 'source scripts/.env.vn-platforms.example && python3 scripts/daily_pancake_orders_to_telegram.py'
+```
