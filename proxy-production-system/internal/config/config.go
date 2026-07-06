@@ -36,6 +36,7 @@ const (
 type Config struct {
 	ListenAddress  string
 	Upstreams      []string
+	StaticRoot     string
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 	IdleTimeout    time.Duration
@@ -45,6 +46,7 @@ type Config struct {
 func LoadFromEnv() (Config, error) {
 	cfg := Config{
 		ListenAddress:  getEnv("PROXY_LISTEN_ADDRESS", defaultListenAddress),
+		StaticRoot:     strings.TrimSpace(os.Getenv("PROXY_STATIC_ROOT")),
 		ReadTimeout:    getDurationEnv("PROXY_READ_TIMEOUT", defaultReadTimeout),
 		WriteTimeout:   getDurationEnv("PROXY_WRITE_TIMEOUT", defaultWriteTimeout),
 		IdleTimeout:    getDurationEnv("PROXY_IDLE_TIMEOUT", defaultIdleTimeout),

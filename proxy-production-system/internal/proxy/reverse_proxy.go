@@ -22,9 +22,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 )
 
-func NewRoundRobinHandler(upstreams []string) (http.Handler, error) {
+func NewRoundRobinHandler(upstreams []string, staticRoot string) (http.Handler, error) {
 	if len(upstreams) == 0 {
 		return nil, fmt.Errorf("at least one upstream is required")
 	}
@@ -57,6 +59,33 @@ func NewRoundRobinHandler(upstreams []string) (http.Handler, error) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	if staticRoot != "" {
+		if err := registerStaticSite(mux, "/v2", filepath.Join(staticRoot, "website")); err != nil {
+			return nil, err
+		}
+		if err := registerStaticSite(mux, "/v3", filepath.Join(staticRoot, "website-v3")); err != nil {
+			return nil, err
+		}
+	}
+
 	mux.Handle("/", reverseProxy)
 	return mux, nil
+}
+
+func registerStaticSite(mux *http.ServeMux, routePrefix, dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("static site %q unavailable at %q: %w", routePrefix, dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("static site %q path %q is not a directory", routePrefix, dir)
+	}
+
+	fileServer := http.FileServer(http.Dir(dir))
+	mux.HandleFunc(routePrefix, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, routePrefix+"/", http.StatusPermanentRedirect)
+	})
+	mux.Handle(routePrefix+"/", http.StripPrefix(routePrefix+"/", fileServer))
+	return nil
 }
