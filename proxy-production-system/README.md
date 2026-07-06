@@ -89,3 +89,15 @@ python3 -m http.server 8081
 ```
 
 Sau đó mở: `http://localhost:8081`
+
+## 7) ScanToolmanus V3 (giữ nguyên V2)
+
+Giao diện V3 được đặt riêng tại `website-v3/` để chạy song song,
+không ghi đè nội dung hiện có của `website/`.
+
+```bash
+cd website-v3
+python3 -m http.server 8082
+```
+
+Sau đó mở: `http://localhost:8082`

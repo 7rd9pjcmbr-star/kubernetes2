@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScanToolmanus V3 - Order Processing & Data Enrichment Platform</title>
+  <meta name="description" content="ScanToolmanus V3 giu nguyen logic V2 va bo sung dashboard, canh bao bat thuong va quy trinh quet don hang da kenh.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="#top">ScanToolmanus <span>V3</span></a>
+      <nav class="nav-links">
+        <a href="#overview">Tong quan</a>
+        <a href="#modules">Module</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#v3">Nang cap V3</a>
+      </nav>
+      <a class="btn btn-sm" href="#cta">Kich hoat</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="pill">Phien ban 3.0 — Giu nguyen V2, tang cuong van hanh</p>
+          <h1>He thong quet don hang da kenh, giu logic V2 va bo sung lop giam sat V3</h1>
+          <p class="lead">
+            ScanToolmanus V3 tiep tuc su dung nen tang V2: thu thap du lieu da kenh,
+            account checker, proxy xoay vong va bo loc don hang thong minh.
+            Ban V3 bo sung giam sat, canh bao va bao cao theo chien dich.
+          </p>
+          <div class="hero-actions">
+            <a class="btn" href="#v3">Xem thay doi V3</a>
+            <a class="btn btn-ghost" href="#workflow">Xem quy trinh quet don</a>
+          </div>
+          <ul class="meta-list">
+            <li>5 nen tang: Pancake, GHTK, Nhanh, Sapo, Haravan</li>
+            <li>18 buoc xu ly + 5 lop giai ma (giu nguyen V2)</li>
+            <li>Proxy pool xoay vong tu dong</li>
+          </ul>
+        </div>
+        <aside class="hero-card">
+          <h2>Chi so he thong</h2>
+          <dl>
+            <div>
+              <dt>Don san sang</dt>
+              <dd id="metric-orders">463,561</dd>
+            </div>
+            <div>
+              <dt>Nen tang</dt>
+              <dd>5</dd>
+            </div>
+            <div>
+              <dt>Buoc xu ly</dt>
+              <dd>18</dd>
+            </div>
+          </dl>
+          <p>V3 dong bo dashboard theo thoi gian thuc va giu toan bo logic loc don cua V2.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="overview" class="section">
+      <div class="container">
+        <h2>Giu nguyen V2, mo rong van hanh</h2>
+        <div class="grid cards-3">
+          <article class="card">
+            <h3>Tuong thich 100% V2</h3>
+            <p>Khong thay doi luong quet don va tieu chi loc don da giao/huy/hoan.</p>
+          </article>
+          <article class="card">
+            <h3>Dong bo bao cao</h3>
+            <p>Tong hop ket qua theo khung 2 ngay, tao file JSON va day bao cao den Telegram.</p>
+          </article>
+          <article class="card">
+            <h3>Van hanh an toan hon</h3>
+            <p>Trang thai sidecar agent va tien trinh script duoc theo doi truc tiep tren dashboard.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="modules" class="section section-alt">
+      <div class="container">
+        <h2>Cac module chinh (giu nguyen tu V2)</h2>
+        <div class="module-grid">
+          <article class="card"><h3>Dashboard</h3><p>Giam sat theo thoi gian thuc.</p></article>
+          <article class="card"><h3>Tai Khoan</h3><p>Quan ly da nen tang.</p></article>
+          <article class="card"><h3>Account Checker</h3><p>Kiem tra live/die theo lo.</p></article>
+          <article class="card"><h3>Proxy Pool</h3><p>Cap phat va xoay proxy thong minh.</p></article>
+          <article class="card"><h3>Don Hang</h3><p>Thu thap va doi chieu du lieu tu dong.</p></article>
+          <article class="card"><h3>Activity Log</h3><p>Nhat ky hanh dong day du.</p></article>
+          <article class="card"><h3>Thong Ke</h3><p>Bieu do xu huong va KPI.</p></article>
+          <article class="card"><h3>Cau Hinh</h3><p>Quan ly tham so quet theo chien dich.</p></article>
+          <article class="card"><h3>Monitoring</h3><p>Theo doi hieu suat toan bo pipeline.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="workflow" class="section">
+      <div class="container">
+        <h2>Workflow xu ly don (V2 core)</h2>
+        <ol class="workflow-list">
+          <li>Nap cau hinh va cap nhat Chat ID Telegram.</li>
+          <li>Khoi tao proxy whitelist cho sandbox IP.</li>
+          <li>Truy van ClickHouse trong cua so 2 ngay gan nhat.</li>
+          <li>Loc bo don da giao, huy, hoan theo rule nghiep vu.</li>
+          <li>Luu ket qua vao <code>/home/ubuntu/filtered_orders.json</code>.</li>
+          <li>Gui bao cao tong hop ve Telegram.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="v3" class="section section-alt">
+      <div class="container">
+        <h2>Nang cap V3</h2>
+        <div class="grid cards-3">
+          <article class="card">
+            <h3>Campaign presets</h3>
+            <p>Cho phep tao profile quet theo kenh/chi nhanh de tai su dung nhanh.</p>
+          </article>
+          <article class="card">
+            <h3>Anomaly warning</h3>
+            <p>Canh bao khi so don giam dot ngot, tile loi tang bat thuong hoac sidecar offline.</p>
+          </article>
+          <article class="card">
+            <h3>Runbook 1-click</h3>
+            <p>Tich hop cac lenh van hanh pho bien de restart, scan lai va xuat bao cao nhanh.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="cta" class="section cta">
+      <div class="container cta-wrap">
+        <h2>Kich hoat ScanToolmanus V3</h2>
+        <p>Ban V2 van duoc giu nguyen. Dien thong tin de nhan checklist rollout V3.</p>
+        <form class="cta-form" onsubmit="return false;">
+          <label for="name" class="sr-only">Ten nguoi van hanh</label>
+          <input id="name" type="text" placeholder="Ten nguoi van hanh" required>
+          <label for="email" class="sr-only">Email cong viec</label>
+          <input id="email" type="email" placeholder="you@company.com" required>
+          <button class="btn" type="submit">Nhan checklist</button>
+        </form>
+        <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© <span id="year"></span> ScanToolmanus. V3 chay song song, V2 van giu nguyen.</p>
+    </div>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
