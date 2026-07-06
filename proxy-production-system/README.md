@@ -241,6 +241,16 @@ python3 scripts/clean_accounts_for_v2.py \
   --v2-command "/home/ubuntu/run_v2.sh"
 ```
 
+Bỏ nhóm `unknown` khi split:
+
+```bash
+python3 scripts/clean_accounts_for_v2.py \
+  --input-file /path/to/mixed_cookie.txt \
+  --split-by-platform \
+  --exclude-unknown \
+  --v2-command "/home/ubuntu/run_v2.sh"
+```
+
 ## 12) Pancake OAuth callback helper (lấy code -> đổi token)
 
 Script `scripts/pancake_oauth_helper.py` giúp:

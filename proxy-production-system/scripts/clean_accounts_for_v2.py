@@ -48,6 +48,11 @@ def parse_args():
         action="store_true",
         help="Split mixed cookie file into per-platform outputs and process each separately.",
     )
+    parser.add_argument(
+        "--exclude-unknown",
+        action="store_true",
+        help="When splitting, skip unknown platform bucket.",
+    )
     parser.add_argument("--force", action="store_true", help="Process even if unchanged in auto mode.")
     return parser.parse_args()
 
@@ -267,6 +272,8 @@ def main():
         grouped = split_lines_by_platform(kept_lines)
         # If caller passed --platform, only keep that group.
         target_platforms = [platform] if args.platform else sorted(grouped.keys())
+        if args.exclude_unknown:
+            target_platforms = [item for item in target_platforms if item != "unknown"]
         for group_platform in target_platforms:
             lines = grouped.get(group_platform, [])
             if not lines:
