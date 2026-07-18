@@ -37,6 +37,7 @@ func TestRoundRobinHandlerServesV2AndV3StaticSites(t *testing.T) {
 	staticRoot := t.TempDir()
 	writeStaticFile(t, filepath.Join(staticRoot, "website", "index.html"), "<h1>v2-page</h1>")
 	writeStaticFile(t, filepath.Join(staticRoot, "website-v3", "index.html"), "<h1>v3-page</h1>")
+	writeStaticFile(t, filepath.Join(staticRoot, "website-plan", "index.html"), "<h1>plan-page</h1>")
 
 	handler, err := NewRoundRobinHandler([]string{upstream.URL}, staticRoot)
 	if err != nil {
@@ -48,6 +49,7 @@ func TestRoundRobinHandlerServesV2AndV3StaticSites(t *testing.T) {
 
 	assertBodyContains(t, server.URL+"/v2/", "v2-page")
 	assertBodyContains(t, server.URL+"/v3/", "v3-page")
+	assertBodyContains(t, server.URL+"/plan/", "plan-page")
 	assertBodyContains(t, server.URL+"/", "proxied-response")
 }
 

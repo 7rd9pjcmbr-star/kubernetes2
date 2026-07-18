@@ -48,7 +48,7 @@ curl -i http://localhost:8080
 | Biến | Bắt buộc | Mặc định | Ý nghĩa |
 |---|---|---|---|
 | `PROXY_UPSTREAMS` | Có | - | Danh sách upstream dạng CSV (`http://a:8081,http://b:8082`) |
-| `PROXY_STATIC_ROOT` | Không | _(trống)_ | Thư mục static root để bật route UI (`/v2`, `/v3`) |
+| `PROXY_STATIC_ROOT` | Không | _(trống)_ | Thư mục static root để bật route UI (`/v2`, `/v3`, `/plan`) |
 | `PROXY_LISTEN_ADDRESS` | Không | `:8080` | Địa chỉ listen của proxy |
 | `PROXY_READ_TIMEOUT` | Không | `15s` | Read timeout cho HTTP server |
 | `PROXY_WRITE_TIMEOUT` | Không | `15s` | Write timeout cho HTTP server |
@@ -91,6 +91,17 @@ python3 -m http.server 8081
 
 Sau đó mở: `http://localhost:8081`
 
+### 6b) Kế hoạch kinh doanh online (`website-plan/`)
+
+Trang kế hoạch đầy đủ (tóm tắt điều hành, thị trường, doanh thu, chi phí, GTM, dự phóng 12 tháng, lộ trình 90 ngày, rủi ro):
+
+```bash
+cd website-plan
+python3 -m http.server 8083
+```
+
+Sau đó mở: `http://localhost:8083`
+
 ## 7) ScanToolmanus V3 (giữ nguyên V2)
 
 Giao diện V3 được đặt riêng tại `website-v3/` để chạy song song,
@@ -108,6 +119,7 @@ và có thể truy cập trên cùng domain:
 
 - V2: `http://<host>:8080/v2/`
 - V3: `http://<host>:8080/v3/`
+- Kế hoạch kinh doanh: `http://<host>:8080/plan/`
 
 ## 8) Kiểm tra API các nền tảng TMDT VN
 

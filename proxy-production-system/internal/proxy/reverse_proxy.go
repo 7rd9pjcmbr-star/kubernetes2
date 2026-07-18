@@ -67,6 +67,9 @@ func NewRoundRobinHandler(upstreams []string, staticRoot string) (http.Handler, 
 		if err := registerStaticSite(mux, "/v3", filepath.Join(staticRoot, "website-v3")); err != nil {
 			return nil, err
 		}
+		if err := registerStaticSite(mux, "/plan", filepath.Join(staticRoot, "website-plan")); err != nil {
+			return nil, err
+		}
 	}
 
 	mux.Handle("/", reverseProxy)
