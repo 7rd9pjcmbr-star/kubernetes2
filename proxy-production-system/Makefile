@@ -7,7 +7,7 @@ DIST_DIR := dist
 RELEASE_NAME := proxy-$(VERSION)-linux-amd64
 LDFLAGS := -X 'proxy-production-system/internal/buildinfo.Version=$(VERSION)' -X 'proxy-production-system/internal/buildinfo.Commit=$(COMMIT)' -X 'proxy-production-system/internal/buildinfo.BuildDate=$(BUILD_DATE)'
 
-.PHONY: test test-race vet fmt-check build run quality security-test package release-ready clean
+.PHONY: test test-race vet fmt-check build run quality security-test package release-ready eval eval-stack clean
 
 test:
 	$(GO) test ./...
@@ -48,6 +48,9 @@ package: clean build
 	@cp $(BIN) $(DIST_DIR)/$(RELEASE_NAME)/proxy
 	@cp README.md $(DIST_DIR)/$(RELEASE_NAME)/README.md
 	@cp -r deployments $(DIST_DIR)/$(RELEASE_NAME)/deployments
+	@cp -r docs $(DIST_DIR)/$(RELEASE_NAME)/docs
+	@cp -r scripts $(DIST_DIR)/$(RELEASE_NAME)/scripts
+	@cp .env.example $(DIST_DIR)/$(RELEASE_NAME)/.env.example
 	@echo "version=$(VERSION)" > $(DIST_DIR)/$(RELEASE_NAME)/BUILD_INFO
 	@echo "commit=$(COMMIT)" >> $(DIST_DIR)/$(RELEASE_NAME)/BUILD_INFO
 	@echo "build_date=$(BUILD_DATE)" >> $(DIST_DIR)/$(RELEASE_NAME)/BUILD_INFO
@@ -56,5 +59,11 @@ package: clean build
 
 release-ready: quality security-test package
 
+eval:
+	./scripts/run-eval.sh
+
+eval-stack:
+	./scripts/start-eval-stack.sh
+
 clean:
-	@rm -rf $(BIN) $(DIST_DIR)
+	@rm -rf $(BIN) bin/eval-upstream $(DIST_DIR)

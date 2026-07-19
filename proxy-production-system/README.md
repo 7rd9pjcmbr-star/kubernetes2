@@ -49,6 +49,7 @@ proxy-production-system/
 │       └── servicemonitor.yaml
 ├── docs/
 │   ├── release-checklist.md
+│   ├── eval-guide.md
 │   ├── quickstart-5m.md
 │   ├── release-standard.md
 │   ├── retail-readiness.md
@@ -57,10 +58,26 @@ proxy-production-system/
     ├── install-nginx-ingress-controller.sh
     ├── package-release.sh
     ├── quality-gate.sh
-    └── security-test.sh
+    ├── run-eval.sh
+    ├── security-test.sh
+    └── start-eval-stack.sh
 ```
 
-## 2) Chạy local
+## 2) Nghiệm thu nhanh (không cần Docker)
+
+```bash
+./scripts/run-eval.sh
+```
+
+Hoặc chạy stack để tự thử tay:
+
+```bash
+./scripts/start-eval-stack.sh
+```
+
+Chi tiết: `docs/eval-guide.md`
+
+## 2b) Chạy local bằng Docker
 
 ```bash
 cp .env.example .env
@@ -130,6 +147,7 @@ make release-ready VERSION=v1.0.0
 
 Checklist bàn giao:
 
+- `docs/eval-guide.md`
 - `docs/quickstart-5m.md`
 - `docs/release-checklist.md`
 - `docs/release-standard.md`
