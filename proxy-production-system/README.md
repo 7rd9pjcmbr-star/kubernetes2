@@ -51,6 +51,7 @@ proxy-production-system/
 │   ├── release-checklist.md
 │   ├── quickstart-5m.md
 │   ├── release-standard.md
+│   ├── retail-readiness.md
 │   └── user-guide.md
 └── scripts/
     ├── install-nginx-ingress-controller.sh
@@ -132,6 +133,7 @@ Checklist bàn giao:
 - `docs/quickstart-5m.md`
 - `docs/release-checklist.md`
 - `docs/release-standard.md`
+- `docs/retail-readiness.md`
 - `docs/user-guide.md`
 
 ## 5) Deploy Kubernetes (mẫu)
