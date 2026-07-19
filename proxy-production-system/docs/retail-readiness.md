@@ -51,6 +51,22 @@
 6. **Gói sản phẩm bán lẻ:** license/EULA, hỗ trợ, versioning thương mại, branding registry.
 7. Nếu bán SaaS: **multi-tenant, quota, billing, admin portal**.
 
+## Nghiệm thu ngay trên máy
+
+Trước khi bán, chạy đánh giá kỹ thuật:
+
+```bash
+./scripts/run-eval.sh
+```
+
+Hoặc giữ stack để tự thử tay:
+
+```bash
+./scripts/start-eval-stack.sh
+```
+
+Xem `docs/eval-guide.md`.
+
 ## Phân loại sử dụng hiện tại
 
 | Mục đích | Có nên dùng? |
