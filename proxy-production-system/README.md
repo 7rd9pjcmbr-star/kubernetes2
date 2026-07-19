@@ -57,21 +57,29 @@ proxy-production-system/
 └── scripts/
     ├── install-nginx-ingress-controller.sh
     ├── package-release.sh
+    ├── preflight-test.sh
     ├── quality-gate.sh
     ├── run-eval.sh
     ├── security-test.sh
     └── start-eval-stack.sh
 ```
 
-## 2) Nghiệm thu nhanh (không cần Docker)
+## 2) Kiểm thử trước khi sử dụng thật (bắt buộc)
+
+```bash
+./scripts/preflight-test.sh
+# hoặc: make preflight
+```
+
+Chỉ đưa vào staging/production khi thấy:
+`PREFLIGHT PASSED - OK TO USE IN STAGING`
+
+Chi tiết: `docs/preflight-test.md`
+
+Nghiệm thu nhanh / tự thử tay:
 
 ```bash
 ./scripts/run-eval.sh
-```
-
-Hoặc chạy stack để tự thử tay:
-
-```bash
 ./scripts/start-eval-stack.sh
 ```
 
@@ -147,6 +155,7 @@ make release-ready VERSION=v1.0.0
 
 Checklist bàn giao:
 
+- `docs/preflight-test.md`
 - `docs/eval-guide.md`
 - `docs/quickstart-5m.md`
 - `docs/release-checklist.md`

@@ -4,6 +4,7 @@ Checklist này dùng trước khi bàn giao bản build cho khách hàng.
 
 ## 1) Code quality gate (bắt buộc pass)
 
+- [ ] `./scripts/preflight-test.sh` pass toàn bộ (quality + security + runtime).
 - [ ] `./scripts/quality-gate.sh` pass toàn bộ.
 - [ ] `./scripts/security-test.sh` pass toàn bộ.
 - [ ] Không có thay đổi chưa commit (`git status --short` rỗng).

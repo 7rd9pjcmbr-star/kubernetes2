@@ -20,19 +20,25 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 )
 
 func main() {
 	listen := envOr("LISTEN", ":18081")
 	name := envOr("NAME", "upstream")
+	delay := delayFromEnv()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte(name))
 	})
 
-	log.Printf("eval upstream starting name=%s listen=%s", name, listen)
+	log.Printf("eval upstream starting name=%s listen=%s delay=%s", name, listen, delay)
 	if err := http.ListenAndServe(listen, mux); err != nil {
 		log.Fatalf("upstream failed: %v", err)
 	}
@@ -44,4 +50,16 @@ func envOr(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func delayFromEnv() time.Duration {
+	raw := os.Getenv("DELAY_MS")
+	if raw == "" {
+		return 0
+	}
+	ms, err := strconv.Atoi(raw)
+	if err != nil || ms <= 0 {
+		return 0
+	}
+	return time.Duration(ms) * time.Millisecond
 }

@@ -7,7 +7,7 @@ DIST_DIR := dist
 RELEASE_NAME := proxy-$(VERSION)-linux-amd64
 LDFLAGS := -X 'proxy-production-system/internal/buildinfo.Version=$(VERSION)' -X 'proxy-production-system/internal/buildinfo.Commit=$(COMMIT)' -X 'proxy-production-system/internal/buildinfo.BuildDate=$(BUILD_DATE)'
 
-.PHONY: test test-race vet fmt-check build run quality security-test package release-ready eval eval-stack clean
+.PHONY: test test-race vet fmt-check build run quality security-test package release-ready eval eval-stack preflight clean
 
 test:
 	$(GO) test ./...
@@ -64,6 +64,9 @@ eval:
 
 eval-stack:
 	./scripts/start-eval-stack.sh
+
+preflight:
+	./scripts/preflight-test.sh
 
 clean:
 	@rm -rf $(BIN) bin/eval-upstream $(DIST_DIR)
