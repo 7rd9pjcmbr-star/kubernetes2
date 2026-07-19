@@ -116,8 +116,21 @@ def run_step(name, cmd, dry_run=False):
 
 
 def telegram_env_ready():
-    needed = ("PANCAKE_POS_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
-    missing = [key for key in needed if not os.getenv(key, "").strip()]
+    missing = []
+    has_pancake = any(
+        os.getenv(key, "").strip()
+        for key in (
+            "PANCAKE_POS_API_KEY",
+            "PANCAKE_POS_ACCESS_TOKEN",
+            "PANCAKE_POS_TOKEN",
+            "PANCAKE_TOKEN",
+        )
+    )
+    if not has_pancake:
+        missing.append("PANCAKE_POS_API_KEY|PANCAKE_POS_ACCESS_TOKEN")
+    for key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        if not os.getenv(key, "").strip():
+            missing.append(key)
     return missing
 
 

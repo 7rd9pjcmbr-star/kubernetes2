@@ -1,0 +1,21 @@
+nhom,nguon_goi,file_dong,dich_ket_noi,co_che_auth,setting_key_lien_quan,ghi_chu
+Pancake POS,import_pancake_orders,app.py:965,https://pos.pancake.vn/api/v1/shops/{shop_id}/orders,Bearer token,pancake_token|pancake_pos_token|centralized_api_key_active,Import don POS theo shop
+Pancake POS,render_pos_api_check,app.py:1734,https://pos.pancake.vn/api/v1/shops/{shop_id}/order_source?tree=true,Bearer token,pancake_pos_sources_endpoint_template|centralized_api_key_active,Kiem tra endpoint nguon don
+Pancake POS,render_pos_api_check,app.py:1738,https://pos.pancake.vn/api/v1/shops/{shop_id}/orders?limit=20,Bearer token,pancake_pos_orders_endpoint_template|centralized_api_key_active,Kiem tra endpoint danh sach don
+Pancake POS,bm workers sync,business_manager/workers.py:160,https://pos.pancake.vn/api/v1/shops/{shop_id}/orders,Bearer token,pancake_token|pancake_pos_token|centralized_api_key_active,Worker dong bo don
+Pancake CRM,lead forms config,app.py:3494,https://crm.pancake.vn/api/workspaces/{workspace_id}/lead_forms_connect,Token or Cookies,pancake_lead_forms_endpoint_template|pancake_cookies|centralized_api_key_active,Ket noi lead forms
+Pancake CRM,pancake api default,business_manager/pancake_api.py:14,https://crm.pancake.vn/api/pages,Token,centralized_api_key_active,Base endpoint CRM pages
+TPOS OData,tpos worker endpoint,business_manager/workers.py:1068,{tpos_base_url}/odata/FastSaleOrder/ODataService.GetViewDelivery,Bearer token,tpos_base_url|tpos_access_token,Endpoint lay van don giao hang
+TPOS OData,tpos base url,business_manager/workers.py:944,https://phamthuhoa.tpos.vn (default),Bearer token,tpos_base_url,Default base URL khi chua set
+TPOS OData,tpos token getter,business_manager/workers.py:949,TPOS_ACCESS_TOKEN (env fallback),Bearer token,tpos_access_token,Doc token tu setting hoac env
+Tracking public,tracking worker,business_manager/workers.py:1131,https://tracking.aship.app/order,Khong auth,provider_code|provider query param,Tra cuu tracking qua web public
+Tracking public,tracking deep query,tools/deep_query_tracking_codes.py:230,https://tracking.aship.app/order?provider_code={ref}&provider={provider},Khong auth,provider_code|provider query param,Truy van nguoc theo ma van don
+Tracking public,tracking sequence,tools/query_tracking_code_sequence.py:90,https://tracking.aship.app/order?provider_code={ref}&provider={provider},Khong auth,provider_code|provider query param,Quet sequence ma tracking
+Telegram Bot,bm notify sendMessage,business_manager/config.py:275,https://api.telegram.org/bot{token}/sendMessage,Bot token,telegram_bot_token|telegram_chat_id,Gui thong bao text
+Telegram Bot,report notify sendDocument,tools/report_intransit_and_notify.py:79,https://api.telegram.org/bot{token}/sendDocument,Bot token,telegram_bot_token|telegram_chat_id,Gui file bao cao
+Telegram Bot,orders notify sendDocument,tools/export_orders_by_status_and_notify.py:80,https://api.telegram.org/bot{token}/sendDocument,Bot token,telegram_bot_token|telegram_chat_id,Gui file theo trang thai don
+Webhook inbound,receiver route,webhook_pos_receiver.py:138,/webhook/pancake-pos,X-Webhook-Secret (optional),pancake_webhook_secret,Diem nhan webhook local/public
+Webhook inbound,receiver secret header,webhook_pos_receiver.py:143,X-Webhook-Secret header compare,Header secret,pancake_webhook_secret,Validate secret truoc khi xu ly
+Webhook config,ui save receiver url,app.py:3328,pancake_webhook_receiver_url in api_settings,N/A,pancake_webhook_receiver_url|pancake_webhook_receiver_host|pancake_webhook_receiver_port,Luu endpoint receiver public
+SQLite DB,db path,business_manager/database.py:12,business_manager.db,N/A,DB_PATH,Duong dan file DB noi bo
+SQLite DB,open connection,business_manager/database.py:90,sqlite3.connect(DB_PATH),N/A,api_settings table,Mo ket noi DB de doc/ghi setting va du lieu

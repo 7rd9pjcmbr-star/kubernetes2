@@ -16,8 +16,15 @@ try:
 except ImportError:  # pragma: no cover - runtime dependency
     Workbook = None
 
+from pancake_pos_client import (
+    auth_ready,
+    fetch_shop_orders,
+    fetch_shops,
+    missing_auth_names,
+    resolve_credentials,
+)
 
-BASE_URL = "https://pos.pages.fm/api/v1"
+
 DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh"
 DEFAULT_STATE_FILE = "/tmp/pancake_daily_telegram_state.json"
 DEFAULT_OUTPUT_DIR = "/tmp"
@@ -30,6 +37,15 @@ def parse_args():
         description="Send one daily Telegram Excel report for Pancake orders from last 24h."
     )
     parser.add_argument("--api-key", default=os.getenv("PANCAKE_POS_API_KEY", "").strip())
+    parser.add_argument(
+        "--access-token",
+        default=(
+            os.getenv("PANCAKE_POS_ACCESS_TOKEN", "").strip()
+            or os.getenv("PANCAKE_POS_TOKEN", "").strip()
+            or os.getenv("PANCAKE_TOKEN", "").strip()
+        ),
+        help="Bearer token (pancake_token / pancake_pos_token).",
+    )
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", "").strip())
     parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID", "").strip())
     parser.add_argument("--timezone", default=os.getenv("REPORT_TIMEZONE", DEFAULT_TIMEZONE))
@@ -41,10 +57,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def require_inputs(args):
+def require_inputs(args, creds):
     missing = []
-    if not args.api_key:
-        missing.append("PANCAKE_POS_API_KEY / --api-key")
+    if not auth_ready(creds):
+        missing.extend(missing_auth_names(creds))
     if not args.telegram_bot_token:
         missing.append("TELEGRAM_BOT_TOKEN / --telegram-bot-token")
     if not args.telegram_chat_id:
@@ -72,12 +88,6 @@ def save_state(path, state):
     state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def request_json(url, params=None, timeout=20):
-    response = requests.get(url, params=params or {}, timeout=timeout)
-    response.raise_for_status()
-    return response.json()
-
-
 def parse_dt(value, tz):
     if not value:
         return None
@@ -91,25 +101,17 @@ def parse_dt(value, tz):
     return dt.astimezone(tz)
 
 
-def fetch_shops(api_key):
-    payload = request_json(f"{BASE_URL}/shops", params={"api_key": api_key})
-    return payload.get("shops", [])
-
-
-def fetch_recent_orders_for_shop(api_key, shop_id, now_tz, page_size, max_pages):
+def fetch_recent_orders_for_shop(creds, shop_id, base_url, now_tz, page_size, max_pages):
     cutoff = now_tz - timedelta(days=1)
     collected = []
 
     for page in range(1, max_pages + 1):
-        payload = request_json(
-            f"{BASE_URL}/shops/{shop_id}/orders",
-            params={
-                "api_key": api_key,
-                "limit": page_size,
-                "page_number": page,
-            },
+        orders = fetch_shop_orders(
+            creds,
+            shop_id,
+            base_url,
+            params={"limit": page_size, "page_number": page},
         )
-        orders = payload.get("data", [])
         if not orders:
             break
 
@@ -184,11 +186,12 @@ def build_excel_file(orders, output_dir, now_tz):
     return file_path
 
 
-def send_to_telegram(bot_token, chat_id, file_path, now_tz, order_count):
+def send_to_telegram(bot_token, chat_id, file_path, now_tz, order_count, base_url):
     caption = (
-        f"Bao cao don hang 24h gan nhat\\n"
-        f"Thoi gian: {now_tz.strftime('%Y-%m-%d %H:%M:%S %Z')}\\n"
-        f"So don: {order_count}"
+        f"Bao cao don hang 24h gan nhat\n"
+        f"Thoi gian: {now_tz.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
+        f"So don: {order_count}\n"
+        f"API: {base_url}"
     )
     url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
     with open(file_path, "rb") as file_handle:
@@ -206,8 +209,9 @@ def send_to_telegram(bot_token, chat_id, file_path, now_tz, order_count):
 
 def main():
     args = parse_args()
+    creds = resolve_credentials(api_key=args.api_key, access_token=args.access_token)
     try:
-        require_inputs(args)
+        require_inputs(args, creds)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -226,14 +230,14 @@ def main():
         print(f"Skip sending: report already sent for {today_key}. Use --force to override.")
         return 0
 
-    shops = fetch_shops(args.api_key)
+    shops, base_url = fetch_shops(creds)
     all_orders = []
     for shop in shops:
         shop_id = shop.get("id")
         if not shop_id:
             continue
         shop_orders = fetch_recent_orders_for_shop(
-            args.api_key, shop_id, now_tz, args.page_size, args.max_pages
+            creds, shop_id, base_url, now_tz, args.page_size, args.max_pages
         )
         for order in shop_orders:
             order["shop_name"] = shop.get("name", "")
@@ -242,7 +246,14 @@ def main():
 
     all_orders.sort(key=lambda item: item.get("inserted_at", ""), reverse=True)
     file_path = build_excel_file(all_orders, args.output_dir, now_tz)
-    send_to_telegram(args.telegram_bot_token, args.telegram_chat_id, file_path, now_tz, len(all_orders))
+    send_to_telegram(
+        args.telegram_bot_token,
+        args.telegram_chat_id,
+        file_path,
+        now_tz,
+        len(all_orders),
+        base_url,
+    )
 
     state.update(
         {
@@ -250,13 +261,15 @@ def main():
             "last_sent_at": now_tz.isoformat(),
             "last_file": str(file_path),
             "last_order_count": len(all_orders),
+            "last_base_url": base_url,
+            "auth_mode": "api_key" if creds.get("api_key") else "bearer",
         }
     )
     save_state(args.state_file, state)
 
     print(
         f"Report sent successfully. date={today_key} orders={len(all_orders)} file={file_path} "
-        f"state={args.state_file}"
+        f"base_url={base_url} state={args.state_file}"
     )
     return 0
 

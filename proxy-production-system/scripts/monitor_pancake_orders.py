@@ -10,12 +10,18 @@ from datetime import datetime
 import requests
 
 
-def call_api(base_url, api_key, endpoint, params=None, timeout=10):
+def call_api(base_url, creds, endpoint, params=None, timeout=10):
     url = f"{base_url.rstrip('/')}{endpoint}"
     query = dict(params or {})
-    query["api_key"] = api_key
+    headers = {"Accept": "application/json"}
+    if creds.get("api_key"):
+        query["api_key"] = creds["api_key"]
+    elif creds.get("access_token"):
+        headers["Authorization"] = f"Bearer {creds['access_token']}"
+    else:
+        return {"_error": "missing_credential"}
     try:
-        response = requests.get(url, params=query, timeout=timeout)
+        response = requests.get(url, params=query, headers=headers, timeout=timeout)
         if response.ok:
             return response.json()
         return {"_error": f"http_{response.status_code}", "_body": response.text[:200]}
@@ -23,12 +29,12 @@ def call_api(base_url, api_key, endpoint, params=None, timeout=10):
         return {"_error": f"request_exception: {exc}"}
 
 
-def monitor_orders(base_url, api_key, poll_seconds, order_limit):
+def monitor_orders(base_url, creds, poll_seconds, order_limit):
     print("Starting Pancake POS order monitor (Ctrl+C to stop).")
     last_order_ids = {}
 
     while True:
-        shops_data = call_api(base_url, api_key, "/shops")
+        shops_data = call_api(base_url, creds, "/shops")
         if not shops_data or "shops" not in shops_data:
             err = shops_data.get("_error") if isinstance(shops_data, dict) else "invalid_response"
             print(f"[{datetime.now().isoformat(timespec='seconds')}] failed to load shops: {err}")
@@ -43,7 +49,7 @@ def monitor_orders(base_url, api_key, poll_seconds, order_limit):
 
             orders_data = call_api(
                 base_url,
-                api_key,
+                creds,
                 f"/shops/{shop_id}/orders",
                 params={"limit": order_limit},
             )
@@ -86,7 +92,7 @@ def main():
     parser = argparse.ArgumentParser(description="Monitor Pancake POS orders in realtime.")
     parser.add_argument(
         "--base-url",
-        default="https://pos.pages.fm/api/v1",
+        default=os.environ.get("PANCAKE_POS_BASE_URL", "https://pos.pages.fm/api/v1"),
         help="Pancake POS API base URL.",
     )
     parser.add_argument(
@@ -108,12 +114,13 @@ def main():
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or ""
-    if not api_key:
-        api_key = os.environ.get("PANCAKE_POS_API_KEY", "").strip()
-    if not api_key:
+    from pancake_pos_client import resolve_credentials, auth_ready
+
+    creds = resolve_credentials(api_key=args.api_key or "")
+    if not auth_ready(creds):
         print(
-            "Missing Pancake API key. Provide --api-key or PANCAKE_POS_API_KEY environment variable.",
+            "Missing Pancake credential. Provide --api-key / PANCAKE_POS_API_KEY "
+            "or PANCAKE_POS_ACCESS_TOKEN / PANCAKE_POS_TOKEN (Bearer).",
             file=sys.stderr,
         )
         return 2
