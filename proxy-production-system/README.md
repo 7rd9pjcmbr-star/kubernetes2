@@ -48,9 +48,10 @@ proxy-production-system/
 │       ├── service.yaml
 │       └── servicemonitor.yaml
 ├── docs/
-│   ├── release-checklist.md
 │   ├── eval-guide.md
+│   ├── preflight-test.md
 │   ├── quickstart-5m.md
+│   ├── release-checklist.md
 │   ├── release-standard.md
 │   ├── retail-readiness.md
 │   └── user-guide.md
