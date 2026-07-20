@@ -89,3 +89,27 @@ python3 -m http.server 8081
 ```
 
 Sau đó mở: `http://localhost:8081`
+
+## 7) Wrapper chạy nginx trong chroot
+
+Script mẫu: `scripts/nginx-chroot-wrapper.sh`
+
+Mục tiêu:
+
+- Đồng bộ `resolv.conf` vào chroot trước khi chạy nginx
+- Chạy nginx trong rootfs `/chroot` với UID không đặc quyền (mặc định `101`)
+- Kiểm tra lỗi đầu vào rõ ràng trước khi chạy
+
+Ví dụ:
+
+```bash
+chmod +x scripts/nginx-chroot-wrapper.sh
+./scripts/nginx-chroot-wrapper.sh -g 'daemon off;'
+```
+
+Có thể override qua biến môi trường:
+
+- `CHROOT_DIR` (mặc định `/chroot`)
+- `RESOLV_CONF_SRC` (mặc định `/etc/resolv.conf`)
+- `RUN_AS_UID` (mặc định `101`)
+- `NGINX_BIN` (mặc định `nginx`)
