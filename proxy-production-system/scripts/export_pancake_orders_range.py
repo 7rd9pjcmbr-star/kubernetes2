@@ -52,7 +52,7 @@ def parse_args():
     parser.add_argument("--shop-id", default=os.getenv("PANCAKE_POS_SHOP_IDS", "714934229").split(",")[0].strip())
     parser.add_argument("--base-url", default=os.getenv("PANCAKE_POS_BASE_URL", "https://pos.pages.fm/api/v1"))
     parser.add_argument("--page-size", type=int, default=100)
-    parser.add_argument("--max-pages", type=int, default=200)
+    parser.add_argument("--max-pages", type=int, default=500)
     parser.add_argument("--timezone", default=os.getenv("REPORT_TIMEZONE", DEFAULT_TZ))
     parser.add_argument("--output-dir", default=os.getenv("REPORT_OUTPUT_DIR", DEFAULT_OUT))
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", "").strip())
