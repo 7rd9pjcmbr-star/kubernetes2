@@ -24,14 +24,30 @@ def resolve_credentials(
     api_key: str = "",
     access_token: str = "",
 ) -> dict[str, str]:
-    key = (api_key or os.getenv("PANCAKE_POS_API_KEY", "")).strip()
+    # Match BM config.get_pancake_token() priority, plus POS Open API key aliases.
+    centralized = (
+        api_key
+        or os.getenv("CENTRAL_API_KEY", "")
+        or os.getenv("PANCAKE_API_KEY", "")
+        or os.getenv("PANCAKE_POS_API_KEY", "")
+        or os.getenv("PANCAKE_API_TOKEN", "")
+    ).strip()
     token = (
         access_token
         or os.getenv("PANCAKE_POS_ACCESS_TOKEN", "")
         or os.getenv("PANCAKE_POS_TOKEN", "")
         or os.getenv("PANCAKE_TOKEN", "")
+        or os.getenv("centralized_api_key_active", "")
+        or os.getenv("centralized_api_key", "")
+        or os.getenv("pancake_pos_token", "")
+        or os.getenv("pancake_token", "")
     ).strip()
-    return {"api_key": key, "access_token": token}
+    # 32-hex centralized values are POS api_keys; longer/JWT values are bearer tokens.
+    if centralized and not token:
+        if len(centralized) == 32:
+            return {"api_key": centralized, "access_token": ""}
+        return {"api_key": "", "access_token": centralized}
+    return {"api_key": centralized, "access_token": token}
 
 
 def auth_ready(creds: dict[str, str]) -> bool:
