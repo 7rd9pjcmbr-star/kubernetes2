@@ -264,20 +264,20 @@ python3 scripts/clean_accounts_for_v2.py \
   --v2-command "/home/ubuntu/run_v2.sh"
 ```
 
-## 12) Pancake OAuth callback helper (lấy code -> đổi token)
+## 12) Pancake OAuth — đổi code giải che PII
 
-Script `scripts/pancake_oauth_helper.py` giúp:
-- parse callback URL sau khi login OAuth
-- decode/validate `state` (base64 JSON)
-- in sẵn lệnh `curl` để đổi `code` thành token
-
-Ví dụ:
+POS login trả `code` về `pancake_id_login_success` (GET). Không dùng `account.pancake.vn/oauth/token` (404).
 
 ```bash
+# Đổi code → lưu cookie local + probe mask/unmask
+python3 scripts/pancake_code_unmask.py \
+  --callback-url 'https://pancake.vn/api/v1/users/pancake_id_login_success?code=YOUR_CODE&state=BASE64_STATE' \
+  --require-pos-login
+
+# Chỉ parse + in curl
 python3 scripts/pancake_oauth_helper.py \
   --callback-url 'https://pancake.vn/api/v1/users/pancake_id_login_success?code=YOUR_CODE&state=BASE64_STATE' \
   --client-id '53e2d5e33a8940f4a30ba22a4011e52a' \
-  --client-secret 'YOUR_CLIENT_SECRET' \
   --require-pos-login
 ```
 
