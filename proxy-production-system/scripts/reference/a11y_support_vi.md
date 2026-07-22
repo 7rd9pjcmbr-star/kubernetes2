@@ -22,7 +22,17 @@ python3 scripts/pancake_code_unmask.py --cookie 'token=...; ...' --probe
 Cookie/token ghi vào `/home/ubuntu/.config/scantool/asunmee.env` (local, không commit).
 Nếu probe báo `unmask_ready`, chạy tiếp `speak_orders_accessibility.py`.
 
+## Giải mã AES mapper (portable)
+
+```bash
+python3 scripts/mapper_decrypt_workflow.py decrypt --input icon-call-pii-aes.json --summary
+python3 scripts/mapper_decrypt_workflow.py bundle --output-dir ./mapper-decrypt-kit
+```
+
+Chi tiết: `scripts/reference/mapper_decrypt_workflow_vi.md`
+
 ## Công cụ
+- `scripts/mapper_decrypt_workflow.py` — quy trình giải mã AES dùng lại everywhere
 - `scripts/pancake_code_unmask.py` — đổi OAuth code / cookie → giải che
 - `scripts/pancake_oauth_helper.py` — parse callback + in curl exchange
 - `scripts/pancake_a11y_unmask_hook.js` — bộ hỗ trợ AT trên tab POS
