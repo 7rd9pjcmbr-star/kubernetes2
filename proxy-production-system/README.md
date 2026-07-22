@@ -281,6 +281,25 @@ python3 scripts/pancake_oauth_helper.py \
   --require-pos-login
 ```
 
+## 12b) Giải mã AES mapper (portable — dùng lại everywhere)
+
+Lớp ngoài AES-256-GCM → lớp trong mask. Guide: `scripts/reference/mapper_decrypt_workflow_vi.md`.
+
+```bash
+# Giải 1 file / tóm tắt
+python3 scripts/mapper_decrypt_workflow.py decrypt --input icon-call-pii-aes.json --summary
+python3 scripts/mapper_decrypt_workflow.py decrypt -i payload.json -o plain.json
+
+# Mang sang máy khác
+python3 scripts/mapper_decrypt_workflow.py bundle --output-dir ./mapper-decrypt-kit
+export MAPPER_AES_KEY_B64='...'   # từ: ... export-key --print-secret
+python3 mapper_decrypt_workflow.py decrypt --input payload.json --summary
+
+# Makefile
+make mapper-decrypt INPUT=icon-call-pii-aes.json
+make mapper-decrypt-kit
+```
+
 ## 13) TikTok Seller URL helper (decode state -> mapping V2)
 
 Script `scripts/tiktok_seller_url_helper.py`:

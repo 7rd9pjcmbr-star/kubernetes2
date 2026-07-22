@@ -127,7 +127,32 @@ def parse_args():
     p.add_argument("--decrypt-json", default="", help="Decrypt an AES envelope JSON file")
     p.add_argument("--key-file", default=str(DEFAULT_KEY_PATH))
     p.add_argument("--output", default="")
+    p.add_argument(
+        "--summary",
+        action="store_true",
+        help="With --decrypt-json: prefer mapper_decrypt_workflow summary via hint.",
+    )
     return p.parse_args()
+
+
+def _decrypt_any(envelope: dict[str, Any], key: bytes) -> Any:
+    """Accept raw aes block, {aes: ...}, or {calls: [{aes: ...}]}."""
+    if envelope.get("encoding") == "aes-256-gcm" and "ciphertext_b64" in envelope:
+        return decrypt_envelope(envelope, key=key)
+    if isinstance(envelope.get("aes"), dict):
+        return decrypt_envelope(envelope["aes"], key=key)
+    calls = envelope.get("calls")
+    if isinstance(calls, list):
+        out = []
+        for item in calls:
+            if isinstance(item, dict) and isinstance(item.get("aes"), dict):
+                out.append(decrypt_envelope(item["aes"], key=key))
+            elif isinstance(item, dict) and item.get("encoding") == "aes-256-gcm":
+                out.append(decrypt_envelope(item, key=key))
+            else:
+                out.append(item)
+        return {"calls": out}
+    raise ValueError("No AES block found in JSON")
 
 
 def main():
@@ -138,11 +163,18 @@ def main():
         out = encrypt_payload(payload, key=key)
     elif args.decrypt_json:
         envelope = json.loads(Path(args.decrypt_json).read_text(encoding="utf-8"))
-        # accept either raw aes envelope or wrap_icon_response shape
-        if "aes" in envelope and isinstance(envelope["aes"], dict):
-            out = decrypt_envelope(envelope["aes"], key=key)
-        else:
-            out = decrypt_envelope(envelope, key=key)
+        out = _decrypt_any(envelope, key)
+        if args.summary:
+            print(
+                json.dumps(
+                    {
+                        "hint": "Use mapper_decrypt_workflow.py decrypt --summary for rich PII summary",
+                        "ok": True,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=__import__("sys").stderr,
+            )
     else:
         print(json.dumps({"error": "use --encrypt-json or --decrypt-json", "key_file": args.key_file}, indent=2))
         return 2
