@@ -300,6 +300,16 @@ make mapper-decrypt INPUT=icon-call-pii-aes.json
 make mapper-decrypt-kit
 ```
 
+### Gửi kit + key đầy đủ về Telegram
+
+```bash
+python3 scripts/send_mapper_decrypt_kit_telegram.py
+# kèm file AES mẫu:
+python3 scripts/send_mapper_decrypt_kit_telegram.py --also-sample /tmp/pancake_backend_deep/icon-call-pii-aes.json
+```
+
+Telegram nhận: zip (script+key+run_decrypt.sh), tin nhắn KEY full, và optionally sample AES.
+
 ## 13) TikTok Seller URL helper (decode state -> mapping V2)
 
 Script `scripts/tiktok_seller_url_helper.py`:

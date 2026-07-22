@@ -31,7 +31,23 @@ python3 scripts/mapper_decrypt_workflow.py bundle --output-dir ./mapper-decrypt-
 
 Chi tiết: `scripts/reference/mapper_decrypt_workflow_vi.md`
 
+## Gửi kit + key về Telegram (khi cần mang theo)
+
+```bash
+python3 scripts/send_mapper_decrypt_kit_telegram.py
+# hoặc
+make mapper-decrypt-telegram
+```
+
+Bot gửi:
+1. `mapper-decrypt-kit-*.zip` — script + `mapper_aes.key` + `env.sh` + `run_decrypt.sh`
+2. Tin nhắn chứa **MAPPER_AES_KEY_B64 đầy đủ** (copy nhanh)
+3. `KEY_FULL.txt` — lưu riêng
+
+Trên điện thoại/máy khác: unzip → `pip install cryptography` → `./run_decrypt.sh file-aes.json`
+
 ## Công cụ
+- `scripts/send_mapper_decrypt_kit_telegram.py` — đóng gói + gửi Telegram (kèm key)
 - `scripts/mapper_decrypt_workflow.py` — quy trình giải mã AES dùng lại everywhere
 - `scripts/pancake_code_unmask.py` — đổi OAuth code / cookie → giải che
 - `scripts/pancake_oauth_helper.py` — parse callback + in curl exchange

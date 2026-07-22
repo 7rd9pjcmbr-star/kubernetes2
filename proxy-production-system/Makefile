@@ -63,3 +63,7 @@ mapper-decrypt-kit:
 
 mapper-protocol:
 	python3 scripts/mapper_decrypt_workflow.py protocol
+
+# Build kit with FULL key and send to Telegram (uses TELEGRAM_* from env)
+mapper-decrypt-telegram:
+	python3 scripts/send_mapper_decrypt_kit_telegram.py
