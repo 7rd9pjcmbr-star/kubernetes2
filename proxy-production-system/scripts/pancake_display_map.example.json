@@ -1,5 +1,6 @@
 {
   "shop_id": "714934229",
+  "page_slug": "ASUNMEE",
   "shop_name": "ASUNMEE",
   "orders": [
     {
@@ -8,12 +9,12 @@
     }
   ],
   "endpoints": {
-    "pages": "https://pancake.vn/api/v1/pages/{shop_id}",
-    "shops": "https://pos.pages.fm/api/v1/shops/{shop_id}"
+    "pages": "https://pancake.vn/api/v1/pages/ASUNMEE",
+    "shops": "https://pos.pages.fm/api/v1/shops/714934229"
   },
   "notes": [
     "UI: DH-2026-001 / cart / virtual QR account",
-    "Mapper: order_code → shop_id, cart → FaShoppingCart, account → bank endpoint",
-    "Endpoint truth: pages/{shop_id} (page token) or shops/{shop_id} (ASUNMEE Open API key)"
+    "Mapper: DH-2026-001 → 714934229, cart → FaShoppingCart",
+    "Endpoint: pages/ASUNMEE needs page access_token; shops/714934229 works with Open API key"
   ]
 }

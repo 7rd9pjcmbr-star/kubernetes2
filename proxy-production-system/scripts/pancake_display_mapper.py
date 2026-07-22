@@ -3,12 +3,12 @@
 Pancake display mapping & unmask flow (3 layers).
 
 1) UI      — user-facing values (order code, icon, virtual account)
-2) Mapper  — order code → shop_id, icon → Fa*, account → bank endpoint
+2) Mapper  — DH-2026-001 → 714934229, cart → FaShoppingCart, QR → bank endpoint
 3) Endpoint — source of truth:
-     primary:  https://pancake.vn/api/v1/pages/{shop_id}
-     fallback: https://pos.pages.fm/api/v1/shops/{shop_id}  (Open API key)
+     primary:  https://pancake.vn/api/v1/pages/ASUNMEE
+     fallback: https://pos.pages.fm/api/v1/shops/714934229  (Open API key)
 
-ASUNMEE defaults: shop_id=714934229
+ASUNMEE defaults: shop_id=714934229, page_slug=ASUNMEE
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ DEFAULT_PAGE_BASE = "https://pancake.vn/api/v1/pages"
 DEFAULT_SHOP_BASE = "https://pos.pages.fm/api/v1"
 DEFAULT_MAP_FILE = "/tmp/pancake_display_map.json"
 DEFAULT_SHOP_ID = os.getenv("PANCAKE_POS_SHOP_IDS", "714934229").split(",")[0].strip() or "714934229"
+DEFAULT_PAGE_SLUG = os.getenv("PANCAKE_PAGE_SLUG", "ASUNMEE")
 ASUNMEE_ENV = Path("/home/ubuntu/.config/scantool/asunmee.env")
 
 ICON_MAP = {
@@ -82,6 +83,7 @@ class MappedView:
     """Layer 2 — resolved internal references."""
 
     shop_id: str | int | None = None
+    page_slug: str = ""
     icon_real: str = ""
     bank_endpoint: str = ""
     page_endpoint: str = ""
@@ -103,10 +105,11 @@ class EndpointRecord:
 
 
 class DisplayMapper:
-    """Maps UI display values to shop IDs and real endpoints."""
+    """Maps UI display values to shop IDs / page slug and real endpoints."""
 
-    def __init__(self, map_file: str | Path | None = None, shop_id: str = ""):
+    def __init__(self, map_file: str | Path | None = None, shop_id: str = "", page_slug: str = ""):
         self.shop_id = (shop_id or DEFAULT_SHOP_ID).strip()
+        self.page_slug = (page_slug or DEFAULT_PAGE_SLUG).strip() or "ASUNMEE"
         self.order_code_to_shop: dict[str, str] = {}
         if map_file:
             self.load(map_file)
@@ -117,6 +120,7 @@ class DisplayMapper:
             return
         payload = json.loads(p.read_text(encoding="utf-8"))
         self.shop_id = str(payload.get("shop_id") or payload.get("page_id") or self.shop_id)
+        self.page_slug = str(payload.get("page_slug") or payload.get("shop_name") or self.page_slug)
         rows = payload.get("orders") or payload.get("order_code_to_shop") or {}
         if isinstance(rows, dict):
             for code, shop in rows.items():
@@ -135,14 +139,15 @@ class DisplayMapper:
         p.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "shop_id": self.shop_id,
+            "page_slug": self.page_slug,
             "shop_name": os.getenv("PANCAKE_SHOP_NAME", "ASUNMEE"),
             "orders": [
                 {"order_code": code, "shop_id": shop}
                 for code, shop in sorted(self.order_code_to_shop.items())
             ],
             "endpoints": {
-                "pages": f"{DEFAULT_PAGE_BASE}/{{shop_id}}",
-                "shops": f"{DEFAULT_SHOP_BASE}/shops/{{shop_id}}",
+                "pages": f"{DEFAULT_PAGE_BASE}/{self.page_slug}",
+                "shops": f"{DEFAULT_SHOP_BASE}/shops/{self.shop_id}",
             },
         }
         p.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -185,9 +190,10 @@ class DisplayMapper:
                 notes.append("order_code_uses_default_shop")
         mapped = MappedView(
             shop_id=shop,
+            page_slug=self.page_slug,
             icon_real=self.map_icon(ui.icon),
             bank_endpoint=self.map_bank_endpoint(ui.account_display),
-            page_endpoint=f"{DEFAULT_PAGE_BASE}/{shop}",
+            page_endpoint=f"{DEFAULT_PAGE_BASE}/{self.page_slug}",
             shop_endpoint=f"{DEFAULT_SHOP_BASE}/shops/{shop}",
             order_code=ui.order_code,
             notes=notes,
@@ -195,14 +201,15 @@ class DisplayMapper:
         return mapped
 
 
-def fetch_page_endpoint(shop_id: str, access_token: str = "", timeout: int = 20) -> EndpointRecord:
-    """Layer 3a — pages API (often needs page access_token)."""
+def fetch_page_endpoint(page_slug: str, access_token: str = "", timeout: int = 20) -> EndpointRecord:
+    """Layer 3a — pages API: https://pancake.vn/api/v1/pages/ASUNMEE"""
     token = (
         access_token
         or os.getenv("PANCAKE_PAGE_ACCESS_TOKEN", "")
         or os.getenv("PANCAKE_POS_ACCESS_TOKEN", "")
     ).strip()
-    url = f"{DEFAULT_PAGE_BASE.rstrip('/')}/{shop_id}"
+    slug = (page_slug or DEFAULT_PAGE_SLUG).strip() or "ASUNMEE"
+    url = f"{DEFAULT_PAGE_BASE.rstrip('/')}/{slug}"
     params = {"access_token": token} if token else {}
     headers = {"Accept": "application/json"}
     if token:
@@ -215,7 +222,7 @@ def fetch_page_endpoint(shop_id: str, access_token: str = "", timeout: int = 20)
     if not isinstance(payload, dict):
         payload = {"data": payload}
     return EndpointRecord(
-        shop_id=str(shop_id),
+        shop_id=str(slug),
         source_url=url,
         success=payload.get("success"),
         error_code=payload.get("error_code"),
@@ -260,7 +267,8 @@ def unmask_bundle(ui: UiView, mapper: DisplayMapper, endpoint: EndpointRecord | 
         "resolved": {
             "order_code": ui.order_code,
             "shop_id": mapped.shop_id,
-            "shop_name": (shop or {}).get("name") if isinstance(shop, dict) else os.getenv("PANCAKE_SHOP_NAME", ""),
+            "page_slug": mapped.page_slug,
+            "shop_name": (shop or {}).get("name") if isinstance(shop, dict) else os.getenv("PANCAKE_SHOP_NAME", mapped.page_slug),
             "icon_real": mapped.icon_real,
             "bank_endpoint": mapped.bank_endpoint,
             "page_endpoint": mapped.page_endpoint,
@@ -286,26 +294,28 @@ def parse_args():
     parser.add_argument("--icon", default="cart")
     parser.add_argument("--account-display", default="VCB-QR-VIRTUAL-001")
     parser.add_argument("--shop-id", default=os.getenv("PANCAKE_POS_SHOP_IDS", DEFAULT_SHOP_ID).split(",")[0].strip())
+    parser.add_argument("--page-slug", default=os.getenv("PANCAKE_PAGE_SLUG", DEFAULT_PAGE_SLUG))
     parser.add_argument("--map-file", default=DEFAULT_MAP_FILE)
     parser.add_argument(
         "--register",
         default="",
         help="Register mapping order_code:shop_id (example: DH-2026-001:714934229)",
     )
-    parser.add_argument("--fetch-endpoint", action="store_true", help="Call pages + shops endpoints.")
-    parser.add_argument("--access-token", default="", help="Optional page access_token.")
-    parser.add_argument("--demo", action="store_true", help="Seed demo DH-2026-001 → ASUNMEE shop.")
+    parser.add_argument("--fetch-endpoint", action="store_true", help="Call pages/ASUNMEE + shops/{id}.")
+    parser.add_argument("--access-token", default="", help="Optional page access_token for pages/ASUNMEE.")
+    parser.add_argument("--demo", action="store_true", help="Seed demo DH-2026-001 → 714934229.")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     load_extra_env()
-    mapper = DisplayMapper(map_file=args.map_file, shop_id=args.shop_id)
+    mapper = DisplayMapper(map_file=args.map_file, shop_id=args.shop_id, page_slug=args.page_slug)
 
     if args.demo:
         mapper.register_order("DH-2026-001", args.shop_id)
         mapper.shop_id = args.shop_id
+        mapper.page_slug = args.page_slug
         mapper.save(args.map_file)
 
     if args.register:
@@ -326,15 +336,15 @@ def main():
 
     endpoint = None
     if args.fetch_endpoint:
-        page = fetch_page_endpoint(args.shop_id, access_token=args.access_token)
+        page = fetch_page_endpoint(args.page_slug, access_token=args.access_token)
         if page.success is True:
             endpoint = page
         else:
-            # Open API key path used by ASUNMEE
             endpoint = fetch_shop_endpoint(args.shop_id)
             if endpoint.success is not True:
                 print(
-                    f"Endpoint gated/failed: pages={page.message}; shops={endpoint.message}",
+                    f"Endpoint gated/failed: pages/{args.page_slug}={page.message}; "
+                    f"shops/{args.shop_id}={endpoint.message}",
                     file=sys.stderr,
                 )
 
