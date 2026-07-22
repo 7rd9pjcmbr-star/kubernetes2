@@ -22,15 +22,36 @@ from pathlib import Path
 import requests
 
 
-DEFAULT_SHOP_ID = "1530618"
-DEFAULT_BASE = "https://pos.pancake.vn/api/v1"
+DEFAULT_SHOP_ID = "714934229"  # ASUNMEE
+DEFAULT_BASE = "https://pos.pages.fm/api/v1"
 DEFAULT_OUT = "/tmp/pancake_full_orders"
+ASUNMEE_ENV = Path("/home/ubuntu/.config/scantool/asunmee.env")
+
+
+def load_extra_env() -> None:
+    """Load durable local env files without hardcoding tokens in source."""
+    candidates = [
+        ASUNMEE_ENV,
+        Path(__file__).resolve().parent / ".env.vn-platforms",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip())
 
 
 def resolve_token(cli_token: str = "") -> str:
+    load_extra_env()
     return (
         cli_token
         or os.getenv("PANCAKE_POS_API_KEY", "")
+        or os.getenv("PANCAKE_API_KEY", "")
+        or os.getenv("CENTRAL_API_KEY", "")
         or os.getenv("PANCAKE_API_TOKEN", "")
         or os.getenv("PANCAKE_POS_ACCESS_TOKEN", "")
         or os.getenv("PANCAKE_POS_TOKEN", "")
@@ -39,6 +60,7 @@ def resolve_token(cli_token: str = "") -> str:
 
 
 def parse_args():
+    load_extra_env()
     parser = argparse.ArgumentParser(description="Fetch full Pancake orders via get_orders.")
     parser.add_argument("--shop-id", default=os.getenv("PANCAKE_POS_SHOP_IDS", DEFAULT_SHOP_ID).split(",")[0].strip())
     parser.add_argument("--token", default="", help="API token / access_token / api_key")
@@ -49,8 +71,8 @@ def parse_args():
     parser.add_argument(
         "--auth-mode",
         choices=["auto", "access_token", "api_key", "bearer"],
-        default="auto",
-        help="How to send the credential.",
+        default="api_key",
+        help="How to send the credential. ASUNMEE Open API key uses api_key.",
     )
     return parser.parse_args()
 
@@ -101,8 +123,8 @@ def call_get_orders(base_url: str, shop_id: str, token: str, limit: int, offset:
     params = {}
     mode = auth_mode
     if mode == "auto":
-        # Uploaded script used access_token= for 32-hex keys too.
-        mode = "access_token"
+        # 32-hex Open API keys work with api_key; JWTs use access_token/bearer.
+        mode = "api_key" if len(token) == 32 else "access_token"
 
     if mode == "access_token":
         params["access_token"] = token
@@ -147,6 +169,21 @@ def main():
     orders = body.get("data") if isinstance(body, dict) else None
     if not isinstance(orders, list):
         orders = []
+
+    # Fallback: classic list endpoint (ASUNMEE Open API key works here).
+    if (not orders) and (status >= 400 or body.get("success") is False):
+        list_url = f"{args.base_url.rstrip('/')}/shops/{args.shop_id}/orders"
+        params = {"limit": max(1, args.limit), "page_number": 1, "api_key": token}
+        headers = {"Accept": "application/json"}
+        resp = requests.get(list_url, params=params, headers=headers, timeout=30)
+        status = resp.status_code
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"raw": resp.text[:500]}
+        orders = body.get("data") if isinstance(body, dict) else []
+        if not isinstance(orders, list):
+            orders = []
 
     result = {
         "fetched_at_utc": datetime.now(timezone.utc).isoformat(),
