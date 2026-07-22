@@ -32,3 +32,16 @@ Giúp người dùng khiếm thị / hạn chế vận động đọc và xử l
 ## Lưu ý
 - Chỉ dùng trên tài khoản/shop bạn được phép truy cập (ASUNMEE)
 - Không thay thế quyền pháp lý / chính sách bảo mật của nền tảng
+
+
+## Không thể thao tác UI?
+Chạy một lệnh (tự lấy đơn + đọc to):
+
+```bash
+python3 scripts/speak_orders_accessibility.py --days 7 --telegram
+```
+
+Nhận trên Telegram:
+- Excel 7 ngày
+- MP3 đọc to tiếng Việt
+- HTML tự đọc khi mở
