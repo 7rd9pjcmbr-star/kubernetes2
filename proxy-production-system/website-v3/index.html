@@ -11,21 +11,23 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <header class="site-header">
+  <a class="skip-link" href="#top">Bo qua den noi dung chinh</a>
+  <header class="site-header" role="banner">
     <div class="container nav-wrap">
       <a class="brand" href="#top">ScanToolmanus <span>V3</span></a>
-      <nav class="nav-links">
+      <nav class="nav-links" aria-label="Dieu huong chinh">
         <a href="#overview">Tong quan</a>
         <a href="#modules">Module</a>
         <a href="#workflow">Workflow</a>
         <a href="#api-health">API TMDT</a>
+        <a href="#a11y">Ho tro khuyet tat</a>
         <a href="#v3">Nang cap V3</a>
       </nav>
       <a class="btn btn-sm" href="#cta">Kich hoat</a>
     </div>
   </header>
 
-  <main id="top">
+  <main id="top" role="main">
     <section class="hero">
       <div class="container hero-grid">
         <div>
@@ -139,6 +141,31 @@
           </table>
         </div>
         <p class="muted" id="platform-api-updated"></p>
+      </div>
+    </section>
+
+    <section id="a11y" class="section">
+      <div class="container">
+        <h2>Ho tro dac biet cho nguoi khuyet tat</h2>
+        <p class="lead">
+          Bo Accessibility Suite giup doc don hang bang screen reader, dieu khien bang ban phim,
+          tuong phan cao, va xuat du lieu khi UI dang che ten/SDT.
+        </p>
+        <div class="grid cards-3">
+          <article class="card">
+            <h3>Screen reader</h3>
+            <p>NVDA, JAWS, VoiceOver, TalkBack — thong bao qua aria-live khi quet/va/xuat.</p>
+          </article>
+          <article class="card">
+            <h3>Ban phim</h3>
+            <p>Alt+Shift+S quet, P va UI, E xuat JSON, H tuong phan, R doc tom tat.</p>
+          </article>
+          <article class="card">
+            <h3>Giai che a11y</h3>
+            <p>Doc aria-label / accessible name tren tab POS ASUNMEE dang dang nhap.</p>
+          </article>
+        </div>
+        <p class="muted">Script: <code>scripts/pancake_a11y_unmask_hook.js</code> — huong dan: <code>scripts/reference/a11y_support_vi.md</code></p>
       </div>
     </section>
 

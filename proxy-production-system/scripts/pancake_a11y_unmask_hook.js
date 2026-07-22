@@ -1,20 +1,23 @@
 /**
- * Pancake POS — Accessibility-assisted order unmask
+ * Pancake POS — Hỗ trợ đặc biệt cho người khuyết tật (Accessibility Suite)
  *
- * Designed for assistive tech parity: screen readers often receive the
- * real accessible name (aria-label / labelledby / title) even when the
- * visible cell is masked.
+ * Mục tiêu: người dùng AT (NVDA/JAWS/VoiceOver/TalkBack) đọc được tên/SĐT
+ * đơn hàng ngay cả khi UI đang mask, điều khiển bằng bàn phím, tương phản cao.
  *
- * Usage (logged-in tab):
+ * Dùng trên tab đã đăng nhập:
  *   https://pos.pancake.vn/shop/714934229/order
- *   1) F12 → Console → paste this file → Enter
- *   2) window.__pancakeA11y.scan()
- *   3) window.__pancakeA11y.downloadJson()
  *
- * Optional Chrome DevTools:
- *   Elements → Accessibility pane → inspect row cells for Name/Value
+ * Phím tắt:
+ *   Alt+Shift+S  — Quét Accessibility
+ *   Alt+Shift+P  — Vá UI từ kết quả a11y
+ *   Alt+Shift+E  — Export JSON
+ *   Alt+Shift+H  — Bật/tắt tương phản cao + chữ lớn
+ *   Alt+Shift+R  — Đọc to tóm tắt (aria-live)
+ *   Alt+Shift+/  — Hiện trợ giúp
+ *
+ * API: window.__pancakeA11y
  */
-(function pancakeA11yUnmask(global) {
+(function pancakeA11yDisabilitySupport(global) {
   "use strict";
 
   const NS = "__pancakeA11y";
@@ -26,6 +29,10 @@
     rows: [],
     lastScanAt: null,
     panel: null,
+    live: null,
+    highContrast: false,
+    largeText: false,
+    helpOpen: false,
   };
 
   function nowIso() {
@@ -37,9 +44,35 @@
   }
 
   function clean(text) {
-    return String(text || "")
-      .replace(/\s+/g, " ")
-      .trim();
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function announce(message, assertive) {
+    ensureLiveRegion();
+    const node = state.live;
+    node.setAttribute("aria-live", assertive ? "assertive" : "polite");
+    // Clear then set so AT re-announces identical strings.
+    node.textContent = "";
+    setTimeout(() => {
+      node.textContent = String(message || "");
+    }, 30);
+    updatePanel(message);
+  }
+
+  function ensureLiveRegion() {
+    if (state.live && document.body.contains(state.live)) return state.live;
+    const live = document.createElement("div");
+    live.id = NS + "Live";
+    live.setAttribute("role", "status");
+    live.setAttribute("aria-live", "polite");
+    live.setAttribute("aria-atomic", "true");
+    live.className = "sr-only";
+    live.style.cssText =
+      "position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;" +
+      "clip:rect(0,0,0,0);white-space:nowrap;border:0";
+    document.documentElement.appendChild(live);
+    state.live = live;
+    return live;
   }
 
   function resolveLabelledBy(el) {
@@ -84,10 +117,9 @@
     push("alt", el.getAttribute("alt"));
     push("data-tip", el.getAttribute("data-tip") || el.getAttribute("data-tooltip"));
     push("placeholder", el.getAttribute("placeholder"));
-    push("value", el.value);
-    // visually-hidden / sr-only siblings often carry full text for AT
+    if ("value" in el) push("value", el.value);
     el.querySelectorAll(
-      ".sr-only, .visually-hidden, .ant-sr-only, [class*='sr-only'], [class*='visually-hidden'], [style*='clip'], [aria-hidden='false']"
+      ".sr-only, .visually-hidden, .ant-sr-only, [class*='sr-only'], [class*='visually-hidden']"
     ).forEach((node, idx) => push("sr-only-" + idx, visibleText(node)));
     push("visible", visibleText(el));
     return out;
@@ -99,9 +131,7 @@
         const ax = await global.getComputedAccessibleNode(el);
         if (ax && ax.name) return clean(ax.name);
       }
-    } catch (_) {
-      /* experimental API may throw */
-    }
+    } catch (_) {}
     return "";
   }
 
@@ -110,15 +140,13 @@
     if (ORDER_ID_RE.test(value) && value.length <= 40) return "order_id";
     if (/@/.test(value)) return "email";
     if (value.length >= 2 && value.length <= 80 && !isMasked(value)) return "name_or_text";
-    if (isMasked(value) && PHONE_RE.test(value.replace(/\*/g, "0"))) return "phone_masked";
     if (isMasked(value)) return "masked_text";
     return "text";
   }
 
   function preferUnmasked(candidates) {
     const clear = candidates.filter((c) => !c.masked && c.value);
-    if (clear.length) return clear[0];
-    return candidates[0] || null;
+    return clear[0] || candidates[0] || null;
   }
 
   function rowNodes() {
@@ -138,32 +166,32 @@
       order_id: "",
       customer_name: "",
       customer_phone: "",
-      extras: [],
       a11y_hits: [],
       source: "accessibility",
       captured_at: nowIso(),
     };
+    const targets = cellNodes(row);
+    const cells = targets.length ? targets : [row];
 
-    const cells = cellNodes(row);
-    const targets = cells.length ? cells : [row];
-
-    for (const cell of targets) {
+    for (const cell of cells) {
       const cands = a11yCandidates(cell);
       const computed = await computedAccessibleName(cell);
-      if (computed) cands.unshift({ source: "computedAccessibleNode", value: computed, masked: isMasked(computed) });
-
+      if (computed) {
+        cands.unshift({
+          source: "computedAccessibleNode",
+          value: computed,
+          masked: isMasked(computed),
+        });
+      }
       for (const cand of cands) {
         const kind = classifyValue(cand.value);
         record.a11y_hits.push({ kind, ...cand });
         if (kind === "order_id" && !record.order_id) record.order_id = cand.value;
         if (kind === "phone" && !record.customer_phone) record.customer_phone = cand.value;
         if (kind === "name_or_text" && !record.customer_name && cand.source !== "visible") {
-          // Prefer non-visible a11y sources for names (visible may be masked later)
           record.customer_name = cand.value;
         }
       }
-
-      // If visible is masked but aria-label clear exists, force pick.
       const best = preferUnmasked(cands.filter((c) => c.source !== "visible"));
       if (best) {
         const kind = classifyValue(best.value);
@@ -173,7 +201,6 @@
       }
     }
 
-    // Fallback order id from row attributes / visible text.
     if (!record.order_id) {
       const attr =
         row.getAttribute("data-row-key") ||
@@ -194,15 +221,19 @@
   }
 
   async function scan() {
-    const rows = [];
-    for (const row of rowNodes()) {
-      const rec = await scanRow(row);
-      if (rec) rows.push(rec);
+    announce("Đang quét accessibility tree để lấy đơn giải che…", false);
+    const collected = [];
+    const rows = rowNodes();
+    for (let i = 0; i < rows.length; i += 1) {
+      const rec = await scanRow(rows[i]);
+      if (rec) collected.push(rec);
+      if (i > 0 && i % 20 === 0) {
+        announce("Đã quét " + i + " / " + rows.length + " hàng", false);
+      }
     }
-    // Deduplicate by order_id when possible.
     const byId = new Map();
-    rows.forEach((r, idx) => {
-      const key = r.order_id || ("row-" + idx);
+    collected.forEach((r, idx) => {
+      const key = r.order_id || "row-" + idx;
       const prev = byId.get(key);
       if (!prev) byId.set(key, r);
       else {
@@ -216,20 +247,21 @@
     });
     state.rows = Array.from(byId.values());
     state.lastScanAt = nowIso();
-    updatePanel(
-      "a11y rows=" +
-        state.rows.length +
-        " clear_phone=" +
-        state.rows.filter((r) => r.customer_phone && !isMasked(r.customer_phone)).length +
-        " clear_name=" +
-        state.rows.filter((r) => r.customer_name && !isMasked(r.customer_name)).length
+    const st = api.status();
+    announce(
+      "Quét xong. " +
+        st.rows +
+        " đơn có dữ liệu a11y. Tên rõ: " +
+        st.clear_name +
+        ". SĐT rõ: " +
+        st.clear_phone +
+        ".",
+      true
     );
-    // Also feed network unmask hook if present.
     if (global.__pancakeUnmask && typeof global.__pancakeUnmask.ingestA11y === "function") {
       global.__pancakeUnmask.ingestA11y(state.rows);
     }
-    console.log("[pancake-a11y]", api.status());
-    return api.status();
+    return st;
   }
 
   function patchFromA11y() {
@@ -248,33 +280,36 @@
       cellNodes(row).forEach((cell) => {
         const visible = visibleText(cell);
         if (!isMasked(visible)) return;
-        if (rec.customer_phone && (PHONE_RE.test(visible.replace(/\*/g, "0")) || visible.includes("*"))) {
-          // Heuristic: if masked phone-like, write phone
-          if (/\d/.test(visible) && rec.customer_phone) {
-            cell.textContent = rec.customer_phone;
-            cell.setAttribute("aria-label", rec.customer_phone);
-            cell.style.outline = "1px solid rgba(59,130,246,.7)";
-            changed += 1;
-            return;
-          }
+        if (rec.customer_phone && /\d/.test(visible)) {
+          cell.textContent = rec.customer_phone;
+          cell.setAttribute("aria-label", "Số điện thoại khách hàng: " + rec.customer_phone);
+          cell.style.outline = "2px solid #3b82f6";
+          changed += 1;
+          return;
         }
-        if (rec.customer_name && isMasked(visible) && !/\d{4,}/.test(visible)) {
+        if (rec.customer_name && !/\d{4,}/.test(visible)) {
           cell.textContent = rec.customer_name;
-          cell.setAttribute("aria-label", rec.customer_name);
-          cell.style.outline = "1px solid rgba(59,130,246,.7)";
+          cell.setAttribute("aria-label", "Tên khách hàng: " + rec.customer_name);
+          cell.style.outline = "2px solid #3b82f6";
           changed += 1;
         }
       });
     });
-    updatePanel("patched " + changed);
+    announce("Đã vá " + changed + " ô bị mask bằng dữ liệu accessibility.", true);
     return { changed, rows: state.rows.length };
   }
 
   function downloadJson() {
     const payload = {
       exported_at: nowIso(),
-      method: "accessibility",
+      method: "accessibility_disability_support",
       shop_hint: "714934229/ASUNMEE",
+      accessibility: {
+        high_contrast: state.highContrast,
+        large_text: state.largeText,
+        keyboard_shortcuts: true,
+        screen_reader_live_region: true,
+      },
       orders: state.rows.map((r) => ({
         order_id: r.order_id,
         customer_name: r.customer_name,
@@ -291,38 +326,123 @@
     a.download = "pancake-a11y-unmasked-" + Date.now() + ".json";
     a.click();
     URL.revokeObjectURL(a.href);
-    updatePanel("exported " + payload.orders.length);
+    announce("Đã xuất " + payload.orders.length + " đơn ra file JSON.", true);
     return payload.orders.length;
+  }
+
+  function readSummary() {
+    const st = api.status();
+    const msg =
+      "Tóm tắt hỗ trợ khuyết tật: " +
+      st.rows +
+      " đơn. Tên rõ " +
+      st.clear_name +
+      ". Số điện thoại rõ " +
+      st.clear_phone +
+      ". Phím tắt Alt Shift S quét, P vá, E xuất, H tương phản.";
+    announce(msg, true);
+    return st;
+  }
+
+  function toggleHighContrast() {
+    state.highContrast = !state.highContrast;
+    state.largeText = state.highContrast ? true : state.largeText && state.highContrast;
+    applyTheme();
+    announce(
+      state.highContrast
+        ? "Đã bật chế độ tương phản cao và chữ lớn."
+        : "Đã tắt chế độ tương phản cao.",
+      true
+    );
+  }
+
+  function applyTheme() {
+    const panel = ensurePanel();
+    if (state.highContrast) {
+      panel.style.background = "#000";
+      panel.style.color = "#fff";
+      panel.style.border = "3px solid #fff";
+      panel.style.fontSize = state.largeText ? "18px" : "14px";
+      document.documentElement.style.filter = "contrast(1.15)";
+    } else {
+      panel.style.background = "#1e3a5f";
+      panel.style.color = "#e2e8f0";
+      panel.style.border = "0";
+      panel.style.fontSize = "12px";
+      document.documentElement.style.filter = "";
+    }
+  }
+
+  function helpText() {
+    return [
+      "Hỗ trợ đặc biệt người khuyết tật — Pancake A11y",
+      "Alt+Shift+S: Quét accessibility",
+      "Alt+Shift+P: Vá ô mask",
+      "Alt+Shift+E: Xuất JSON",
+      "Alt+Shift+H: Tương phản cao",
+      "Alt+Shift+R: Đọc tóm tắt",
+      "Alt+Shift+/: Trợ giúp",
+      "Tương thích NVDA, JAWS, VoiceOver, TalkBack.",
+    ].join(". ");
+  }
+
+  function showHelp() {
+    state.helpOpen = true;
+    announce(helpText(), true);
+    const panel = ensurePanel();
+    let help = panel.querySelector("[data-role='help']");
+    if (!help) {
+      help = document.createElement("div");
+      help.setAttribute("data-role", "help");
+      help.style.marginTop = "8px";
+      help.style.lineHeight = "1.5";
+      panel.appendChild(help);
+    }
+    help.innerHTML =
+      "<strong>Phím tắt</strong><ul style='margin:6px 0 0 18px;padding:0'>" +
+      "<li>Alt+Shift+S — Quét</li>" +
+      "<li>Alt+Shift+P — Vá UI</li>" +
+      "<li>Alt+Shift+E — Export</li>" +
+      "<li>Alt+Shift+H — Tương phản cao</li>" +
+      "<li>Alt+Shift+R — Đọc tóm tắt</li>" +
+      "</ul>";
   }
 
   function ensurePanel() {
     if (state.panel && document.body.contains(state.panel)) return state.panel;
     const panel = document.createElement("div");
     panel.id = NS + "Panel";
-    panel.setAttribute("role", "region");
-    panel.setAttribute("aria-label", "Pancake accessibility unmask tools");
+    panel.setAttribute("role", "complementary");
+    panel.setAttribute("aria-label", "Hỗ trợ đặc biệt người khuyết tật — giải che đơn hàng");
+    panel.tabIndex = -1;
     panel.style.cssText =
       "position:fixed;left:12px;bottom:12px;z-index:2147483646;background:#1e3a5f;color:#e2e8f0;" +
-      "font:12px/1.4 ui-sans-serif,system-ui,sans-serif;padding:10px 12px;border-radius:10px;" +
-      "box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:300px";
+      "font:12px/1.45 ui-sans-serif,system-ui,sans-serif;padding:12px 14px;border-radius:10px;" +
+      "box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:340px";
     panel.innerHTML =
-      '<div style="font-weight:700;margin-bottom:4px">A11y Unmask (AT)</div>' +
-      '<div data-role="status">idle</div>' +
-      '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button type="button" data-act="scan">Scan a11y</button>' +
-      '<button type="button" data-act="patch">Patch UI</button>' +
-      '<button type="button" data-act="export">Export JSON</button>' +
+      '<div style="font-weight:700;margin-bottom:4px">Hỗ trợ đặc biệt (A11y)</div>' +
+      '<div data-role="status" aria-live="polite">Sẵn sàng. Bấm Quét hoặc Alt+Shift+S.</div>' +
+      '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap" role="toolbar" aria-label="Thao tác accessibility">' +
+      '<button type="button" data-act="scan" accesskey="s">Quét</button>' +
+      '<button type="button" data-act="patch" accesskey="p">Vá UI</button>' +
+      '<button type="button" data-act="export" accesskey="e">Xuất JSON</button>' +
+      '<button type="button" data-act="contrast" accesskey="h">Tương phản</button>' +
+      '<button type="button" data-act="read" accesskey="r">Đọc</button>' +
+      '<button type="button" data-act="help">Trợ giúp</button>' +
       "</div>";
     panel.querySelectorAll("button").forEach((btn) => {
       btn.style.cssText =
-        "cursor:pointer;border:0;border-radius:6px;padding:4px 8px;background:#334155;color:#fff";
-      btn.setAttribute("type", "button");
+        "cursor:pointer;border:2px solid #94a3b8;border-radius:6px;padding:6px 10px;" +
+        "background:#0f172a;color:#fff;min-height:36px;font-weight:600";
     });
     panel.addEventListener("click", (ev) => {
       const act = ev.target && ev.target.getAttribute("data-act");
       if (act === "scan") scan();
-      if (act === "patch") console.log("[pancake-a11y]", patchFromA11y());
+      if (act === "patch") patchFromA11y();
       if (act === "export") downloadJson();
+      if (act === "contrast") toggleHighContrast();
+      if (act === "read") readSummary();
+      if (act === "help") showHelp();
     });
     document.documentElement.appendChild(panel);
     state.panel = panel;
@@ -335,22 +455,49 @@
     if (status) status.textContent = message;
   }
 
+  function onKeydown(ev) {
+    if (!(ev.altKey && ev.shiftKey)) return;
+    const key = String(ev.key || "").toLowerCase();
+    const map = {
+      s: () => scan(),
+      p: () => patchFromA11y(),
+      e: () => downloadJson(),
+      h: () => toggleHighContrast(),
+      r: () => readSummary(),
+      "/": () => showHelp(),
+      "?": () => showHelp(),
+    };
+    if (!map[key]) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    map[key]();
+  }
+
   const api = {
     scan,
     patchFromA11y,
     downloadJson,
+    readSummary,
+    toggleHighContrast,
+    showHelp,
     status() {
       return {
         rows: state.rows.length,
         clear_name: state.rows.filter((r) => r.customer_name && !isMasked(r.customer_name)).length,
         clear_phone: state.rows.filter((r) => r.customer_phone && !isMasked(r.customer_phone)).length,
         lastScanAt: state.lastScanAt,
+        highContrast: state.highContrast,
       };
     },
   };
 
   global[NS] = api;
+  ensureLiveRegion();
   ensurePanel();
-  updatePanel("ready — click Scan a11y");
-  console.log("[pancake-a11y] ready. API:", NS, "→ scan / patchFromA11y / downloadJson");
+  document.addEventListener("keydown", onKeydown, true);
+  announce(
+    "Đã bật hỗ trợ đặc biệt cho người khuyết tật. Alt+Shift+Slash để nghe hướng dẫn phím tắt.",
+    false
+  );
+  console.log("[pancake-a11y] disability support ready:", NS);
 })(window);
