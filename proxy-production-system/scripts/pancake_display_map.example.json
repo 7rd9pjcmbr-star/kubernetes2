@@ -1,14 +1,19 @@
 {
-  "page_id": "spo_90679120",
+  "shop_id": "714934229",
+  "shop_name": "ASUNMEE",
   "orders": [
     {
       "order_code": "DH-2026-001",
-      "internal_order_id": 430238387
+      "shop_id": "714934229"
     }
   ],
+  "endpoints": {
+    "pages": "https://pancake.vn/api/v1/pages/{shop_id}",
+    "shops": "https://pos.pages.fm/api/v1/shops/{shop_id}"
+  },
   "notes": [
-    "UI shows DH-2026-001 / cart icon / virtual account",
-    "Mapper resolves to internal id + FaShoppingCart + bank endpoint",
-    "Endpoint https://pancake.vn/api/v1/pages/{page_id} holds true fields (needs access_token)"
+    "UI: DH-2026-001 / cart / virtual QR account",
+    "Mapper: order_code → shop_id, cart → FaShoppingCart, account → bank endpoint",
+    "Endpoint truth: pages/{shop_id} (page token) or shops/{shop_id} (ASUNMEE Open API key)"
   ]
 }
