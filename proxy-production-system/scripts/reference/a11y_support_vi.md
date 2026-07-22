@@ -3,7 +3,28 @@
 ## Mục tiêu
 Giúp người dùng khiếm thị / hạn chế vận động đọc và xử lý đơn hàng ASUNMEE khi giao diện đang **che** tên/SĐT.
 
+## Đổi code → giải che (OAuth)
+
+Sau login `account.pancake.vn`, browser redirect về callback có `code=...`.
+Đổi code bằng **GET** `pancake_id_login_success` (không dùng `/oauth/token` — 404).
+
+```bash
+# 1) Login (email), copy URL callback đầy đủ có code=
+# 2) Đổi code → lưu cookie local + probe PII
+python3 scripts/pancake_code_unmask.py \
+  --callback-url 'https://pancake.vn/api/v1/users/pancake_id_login_success?code=YOUR_CODE&state=...' \
+  --require-pos-login
+
+# Hoặc dán Cookie từ DevTools (Application → Cookies → pos.pancake.vn)
+python3 scripts/pancake_code_unmask.py --cookie 'token=...; ...' --probe
+```
+
+Cookie/token ghi vào `/home/ubuntu/.config/scantool/asunmee.env` (local, không commit).
+Nếu probe báo `unmask_ready`, chạy tiếp `speak_orders_accessibility.py`.
+
 ## Công cụ
+- `scripts/pancake_code_unmask.py` — đổi OAuth code / cookie → giải che
+- `scripts/pancake_oauth_helper.py` — parse callback + in curl exchange
 - `scripts/pancake_a11y_unmask_hook.js` — bộ hỗ trợ AT trên tab POS
 - `scripts/pancake_orders_unmask_hook.js` — bắt response mạng + nhận dữ liệu a11y
 
@@ -29,9 +50,42 @@ Giúp người dùng khiếm thị / hạn chế vận động đọc và xử l
 - Accessible name / `aria-label` đôi khi vẫn chứa giá trị đầy đủ để AT đọc
 - Cách này bám nguyên tắc **parity với công nghệ hỗ trợ**, trên session shop của bạn
 
-## Lưu ý
-- Chỉ dùng trên tài khoản/shop bạn được phép truy cập (ASUNMEE)
-- Không thay thế quyền pháp lý / chính sách bảo mật của nền tảng
+## Frida — hỗ trợ đặc biệt (TalkBack / hạn chế vận động)
+
+Dùng khi cần đọc accessibility tree trên **app POS Android** hoặc tiêm a11y vào WebView.
+
+```bash
+# Cloud / không có máy: demo mapper + TTS + AES
+python3 scripts/frida_a11y_assist.py --offline-demo --telegram
+
+# Máy thật (USB), app Pancake POS đã cài frida-server
+python3 scripts/frida_a11y_assist.py -U --list-processes
+python3 scripts/frida_a11y_assist.py -U -n <tên_process> --scan --speak --export --aes
+```
+
+Script Frida: `scripts/frida_a11y_disability.js`  
+- Hook `AccessibilityNodeInfo.getText` / `getContentDescription` (TalkBack parity)  
+- Tiêm live region vào WebView Pancake  
+- RPC: `ping` / `scan` / `exportNodes` / `speak`
+
+Chỉ dùng trên thiết bị và tài khoản shop bạn được phép (ASUNMEE).
+
+## Fingerprint spoof (máy test / a11y)
+
+Ổn định phiên automation a11y trên **thiết bị của bạn** (không dùng để farm / gian lận).
+
+```bash
+# Frida: a11y + spoof Build/ANDROID_ID/UA
+python3 scripts/frida_a11y_assist.py -U -n <process_pos> \
+  --spoof-fingerprint --fp-randomize --scan --speak
+
+# Hoặc load tay
+frida -U -n <process> \
+  -l scripts/frida_a11y_disability.js \
+  -l scripts/frida_fingerprint_spoof.js
+```
+
+Browser (tab POS đã login): dán `scripts/fingerprint_spoof_lite.js` trước hook a11y.
 
 
 ## Không thể thao tác UI?
@@ -45,3 +99,24 @@ Nhận trên Telegram:
 - Excel 7 ngày
 - MP3 đọc to tiếng Việt
 - HTML tự đọc khi mở
+
+## Xem đơn hàng chi tiết (mapper → endpoint → DB)
+
+Luồng 3 lớp:
+1. UI: mã hiển thị (`order_code` / `display_id`)
+2. Mapper: resolve → `shop_id` + `order_id`
+3. Endpoint/DB: `GET /shops/{shop}/orders/{id}` + cache SQLite
+
+```bash
+# Đồng bộ 7 ngày vào DB local
+python3 scripts/query_order_detail.py --sync-days 7 --detail-limit 0
+
+# Xem chi tiết (ưu tiên DB; --refresh để gọi lại endpoint)
+python3 scripts/query_order_detail.py --order-code <order_id> --refresh --full --telegram
+
+# Liệt kê đơn gần nhất trong DB
+python3 scripts/query_order_detail.py --list 20
+```
+
+DB mặc định: `/home/ubuntu/.config/scantool/asunmee_orders.db`  
+Map: `/home/ubuntu/.config/scantool/asunmee_display_map.json`

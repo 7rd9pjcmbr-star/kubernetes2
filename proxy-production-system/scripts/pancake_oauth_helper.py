@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Parse Pancake OAuth callback URL and print token exchange curl command."""
+"""Parse Pancake OAuth callback URL and print code-exchange commands.
+
+POS login does **not** use account.pancake.vn/oauth/token (404).
+Real exchange is GET pancake_id_login_success?code=...&state=...
+
+For full unmask save + probe, prefer:
+  python3 scripts/pancake_code_unmask.py --callback-url '...'
+"""
 
 import argparse
 import base64
@@ -10,7 +17,7 @@ import urllib.parse
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Pancake OAuth helper: parse callback, validate state, generate token curl."
+        description="Pancake OAuth helper: parse callback, validate state, generate exchange curl."
     )
     parser.add_argument(
         "--callback-url",
@@ -25,7 +32,7 @@ def parse_args():
     parser.add_argument(
         "--client-secret",
         default="",
-        help="OAuth client_secret. Optional in output; can be filled manually.",
+        help="Unused for POS pancake_id_login_success GET exchange; kept for compatibility.",
     )
     parser.add_argument(
         "--redirect-uri",
@@ -34,8 +41,8 @@ def parse_args():
     )
     parser.add_argument(
         "--token-endpoint",
-        default="https://account.pancake.vn/oauth/token",
-        help="OAuth token exchange endpoint.",
+        default="https://pancake.vn/api/v1/users/pancake_id_login_success",
+        help="Code exchange endpoint (GET). Default: pancake_id_login_success.",
     )
     parser.add_argument(
         "--require-pos-login",
@@ -108,16 +115,18 @@ def main():
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
-    client_secret_value = args.client_secret if args.client_secret else "<CLIENT_SECRET>"
-    encoded_redirect = urllib.parse.quote(args.redirect_uri, safe="")
-    curl_cmd = (
-        f"curl -sS -X POST '{args.token_endpoint}' "
-        f"-H 'Content-Type: application/x-www-form-urlencoded' "
-        f"--data 'grant_type=authorization_code&code={code}&client_id={client_id}"
-        f"&client_secret={client_secret_value}&redirect_uri={encoded_redirect}'"
-    )
-    print("\nToken exchange command:")
+    params = {"code": code, "client_id": client_id, "redirect_uri": args.redirect_uri}
+    if state:
+        params["state"] = state
+    exchange_url = args.token_endpoint.rstrip("/") + "?" + urllib.parse.urlencode(params)
+    curl_cmd = f"curl -sS -D - -o /tmp/pancake_exchange.body '{exchange_url}'"
+    print("\nCode exchange command (GET — POS real path):")
     print(curl_cmd)
+    print("\nUnmask helper (save cookie + probe PII):")
+    print(
+        "python3 scripts/pancake_code_unmask.py "
+        f"--callback-url '{args.callback_url}' --require-pos-login"
+    )
     return 0
 
 
