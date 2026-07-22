@@ -12,6 +12,8 @@
  *   - Hooks fetch + XHR to capture full order payloads (name/phone before UI mask)
  *   - Patches masked cells in the orders grid
  *   - Keeps a live index by order id / display code
+ *   - Accepts accessibility scans via window.__pancakeUnmask.ingestA11y(rows)
+ *     (use with pancake_a11y_unmask_hook.js for AT / screen-reader path)
  */
 (function pancakeOrdersUnmaskHook(global) {
   "use strict";
@@ -479,12 +481,34 @@
     }
   }
 
+  function ingestA11y(rows) {
+    let added = 0;
+    (rows || []).forEach((row) => {
+      if (!row) return;
+      const fakeOrder = {
+        id: row.order_id,
+        customer: {
+          name: row.customer_name,
+          phone_number: row.customer_phone,
+        },
+      };
+      if (ingestOrder(fakeOrder)) added += 1;
+    });
+    if (added) {
+      persistOrders();
+      setTimeout(patchNow, 200);
+    }
+    updatePanel("a11y ingested +" + added);
+    return { added, totalOrders: state.ordersByKey.size };
+  }
+
   const api = {
     install,
     patchNow,
     downloadJson,
     exportRows,
     countMaskedLeft,
+    ingestA11y,
     status() {
       return {
         installed: state.installed,
