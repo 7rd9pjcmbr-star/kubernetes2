@@ -13,6 +13,16 @@ from typing import Any
 import pandas as pd
 import requests
 
+from vps_utils import (
+    build_requests_proxy,
+    is_vps_environment,
+    load_proxy_pool,
+    pick_user_agent,
+    resolve_account_proxy,
+    sleep_between_accounts,
+    with_retries,
+)
+
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = ROOT_DIR / "configs" / "config_jt.json"
 
@@ -135,26 +145,10 @@ def cookies_from_config(account: dict[str, Any]) -> str:
     return ""
 
 
-def build_proxy_dict(proxy_cfg: dict[str, Any]) -> dict[str, str] | None:
-    if not proxy_cfg.get("enabled"):
-        return None
-    host = str(proxy_cfg.get("host", "")).strip()
-    port = proxy_cfg.get("port")
-    if not host or not port:
-        return None
-    scheme = str(proxy_cfg.get("scheme", "http")).strip() or "http"
-    username = str(proxy_cfg.get("username", "")).strip()
-    password = str(proxy_cfg.get("password", "")).strip()
-    if username:
-        proxy_url = f"{scheme}://{username}:{password}@{host}:{port}"
-    else:
-        proxy_url = f"{scheme}://{host}:{port}"
-    return {"http": proxy_url, "https": proxy_url}
-
-
 def fetch_orders_for_account(
     account: dict[str, Any],
     settings: dict[str, Any],
+    proxy_cfg: dict[str, Any],
 ) -> list[dict[str, Any]]:
     shop_name = str(account.get("username", "")).strip() or "Tài khoản J&T"
     cookie_header = cookies_from_config(account)
@@ -174,12 +168,12 @@ def fetch_orders_for_account(
     api_url = str(settings.get("api_url", "https://jtexpress.vn")).strip()
 
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ),
+        "User-Agent": pick_user_agent(settings),
         "Content-Type": "application/json;charset=UTF-8",
         "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Origin": "https://vip.jtexpress.vn",
+        "Referer": "https://vip.jtexpress.vn/",
         "Connection": "close",
         "Cookie": cookie_header,
     }
@@ -192,17 +186,27 @@ def fetch_orders_for_account(
         "status": str(settings.get("order_status", "IN_TRANSIT")),
     }
 
-    proxies = build_proxy_dict(account.get("proxy", {}))
+    proxies = build_requests_proxy(proxy_cfg)
+    if is_vps_environment() and not proxies:
+        print(f"[!] {shop_name}: VPS không dùng proxy — rủi ro bị chặn cao.")
     print(f"[*] {shop_name}: kết nối tới {api_url}...")
 
     extracted: list[dict[str, Any]] = []
     try:
-        response = requests.post(
-            api_url,
-            json=payload,
-            headers=headers,
-            proxies=proxies,
-            timeout=timeout,
+        def _post_once() -> requests.Response:
+            return requests.post(
+                api_url,
+                json=payload,
+                headers=headers,
+                proxies=proxies,
+                timeout=timeout,
+            )
+
+        response = with_retries(
+            _post_once,
+            settings=settings,
+            label=f"J&T API {shop_name}",
+            retryable_status=lambda resp: resp.status_code in (429, 502, 503, 504),
         )
 
         if response.status_code != 200:
@@ -268,12 +272,16 @@ def run_jtexpress_vn_extraction() -> int:
         return 2
 
     settings = config.get("settings", {})
+    proxy_pool = load_proxy_pool(config)
     all_orders: list[dict[str, Any]] = []
 
     for index, account in enumerate(config["accounts"], start=1):
+        if index > 1:
+            sleep_between_accounts(settings)
         label = str(account.get("username") or f"account_{index}")
         print(f"\n=== Tài khoản {index}/{len(config['accounts'])}: {label} ===")
-        all_orders.extend(fetch_orders_for_account(account, settings))
+        proxy_cfg = resolve_account_proxy(account, index - 1, proxy_pool, settings)
+        all_orders.extend(fetch_orders_for_account(account, settings, proxy_cfg))
 
     if not all_orders:
         print(

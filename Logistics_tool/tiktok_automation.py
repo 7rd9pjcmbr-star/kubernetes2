@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import random
 import sys
 import time
 from datetime import datetime, timedelta
@@ -13,6 +14,19 @@ from typing import Any
 import pandas as pd
 import requests
 from playwright.sync_api import BrowserContext, sync_playwright
+
+from vps_utils import (
+    anti_block_settings,
+    apply_stealth_init_script,
+    browser_context_options,
+    build_playwright_proxy,
+    is_vps_environment,
+    load_proxy_pool,
+    resolve_account_proxy,
+    resolve_headless,
+    sleep_between_accounts,
+    STEALTH_LAUNCH_ARGS,
+)
 
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = ROOT_DIR / "configs" / "config_tiktok.json"
@@ -70,20 +84,50 @@ def parse_account(account: dict[str, Any]) -> tuple[str, str, str] | None:
     return normalize_shop_name(shop_raw), username, password
 
 
-def build_playwright_proxy(proxy_cfg: dict[str, Any]) -> dict[str, str] | None:
-    if not proxy_cfg.get("enabled"):
-        return None
-    host = str(proxy_cfg.get("host", "")).strip()
-    port = proxy_cfg.get("port")
-    if not host or not port:
-        return None
-    scheme = str(proxy_cfg.get("scheme", "http")).strip() or "http"
-    username = str(proxy_cfg.get("username", "")).strip()
-    password = str(proxy_cfg.get("password", "")).strip()
-    server = f"{scheme}://{host}:{port}"
-    if username:
-        return {"server": server, "username": username, "password": password}
-    return {"server": server}
+def try_reuse_session(
+    shop_name: str,
+    session_dir: Path,
+    settings: dict[str, Any],
+    all_orders: list[dict[str, Any]],
+    playwright_instance: Any,
+    proxy_config: dict[str, str] | None,
+) -> bool:
+    ab = anti_block_settings(settings)
+    if not ab.get("reuse_tpos_session"):
+        return False
+
+    session_file = session_dir / f"{shop_name}_session.json"
+    if not session_file.exists():
+        return False
+
+    print(f"[*] Thử tái sử dụng session đã lưu: {session_file.name}")
+    headless = resolve_headless(settings)
+    browser = playwright_instance.chromium.launch(
+        headless=headless,
+        proxy=proxy_config,
+        args=STEALTH_LAUNCH_ARGS,
+    )
+    context = browser.new_context(
+        storage_state=str(session_file),
+        **browser_context_options(settings),
+    )
+    page = context.new_page()
+    apply_stealth_init_script(page)
+    try:
+        page.goto(f"https://{shop_name}.tpos.vn/#/desktop", timeout=20000)
+        if "login" in page.url:
+            print(f"[-] Session {shop_name} đã hết hạn, sẽ login lại.")
+            return False
+        before = len(all_orders)
+        fetch_and_parse_orders(shop_name, context, all_orders, settings)
+        if len(all_orders) > before:
+            print(f"[+] Tái sử dụng session thành công cho {shop_name}.")
+            return True
+    except Exception as exc:
+        print(f"[-] Không tái sử dụng được session {shop_name}: {exc}")
+    finally:
+        browser.close()
+    return False
 
 
 def detect_region_from_address(address_str: str) -> str:
@@ -206,6 +250,7 @@ def process_account(
     session_dir: Path,
     all_orders: list[dict[str, Any]],
     playwright_instance: Any,
+    proxy_cfg: dict[str, Any],
 ) -> None:
     parsed = parse_account(account)
     if not parsed:
@@ -214,15 +259,30 @@ def process_account(
         return
 
     shop_name, username, password = parsed
-    proxy_config = build_playwright_proxy(account.get("proxy", {}))
+    proxy_config = build_playwright_proxy(proxy_cfg)
+    if is_vps_environment() and not proxy_config:
+        print(f"[!] VPS shop {shop_name}: chưa có proxy — dễ bị TPOS/ReCAPTCHA chặn.")
+
+    if try_reuse_session(
+        shop_name, session_dir, settings, all_orders, playwright_instance, proxy_config
+    ):
+        return
+
     omocaptcha_key = str(settings.get("omocaptcha_api_key", "")).strip()
-    headless = bool(settings.get("headless", False))
+    headless = resolve_headless(settings)
+    ab = anti_block_settings(settings)
+    typing_delay = int(ab.get("human_typing_delay_ms", 80))
 
     print(f"\n================ Shop: {shop_name}.tpos.vn ================")
 
-    browser = playwright_instance.chromium.launch(headless=headless, proxy=proxy_config)
-    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    browser = playwright_instance.chromium.launch(
+        headless=headless,
+        proxy=proxy_config,
+        args=STEALTH_LAUNCH_ARGS,
+    )
+    context = browser.new_context(**browser_context_options(settings))
     page = context.new_page()
+    apply_stealth_init_script(page)
 
     try:
         login_url = f"https://{shop_name}.tpos.vn/#/account/login"
@@ -248,10 +308,12 @@ def process_account(
                     )
                     print("[+] Đã nạp mã Bypass ReCAPTCHA thành công.")
 
-        page.locator(user_selector).first.fill(username, timeout=4000)
+        page.locator(user_selector).first.fill("", timeout=2000)
+        page.locator(user_selector).first.type(username, delay=typing_delay)
         pass_selector = "input[type='password'], input#Password"
-        page.locator(pass_selector).first.fill(password, timeout=4000)
-        time.sleep(0.5)
+        page.locator(pass_selector).first.fill("", timeout=2000)
+        page.locator(pass_selector).first.type(password, delay=typing_delay)
+        time.sleep(random.uniform(0.4, 1.2))
 
         btn_selector = "button[type='submit'], button:has-text('Đăng nhập')"
         page.locator(btn_selector).first.click(timeout=4000)
@@ -303,17 +365,22 @@ def run_automation() -> int:
 
     all_extracted_orders: list[dict[str, Any]] = []
     accounts = config["accounts"]
+    proxy_pool = load_proxy_pool(config)
 
     with sync_playwright() as playwright_instance:
         for index, account in enumerate(accounts, start=1):
+            if index > 1:
+                sleep_between_accounts(settings)
             print(f"\n>>> Tài khoản {index}/{len(accounts)}")
             try:
+                proxy_cfg = resolve_account_proxy(account, index - 1, proxy_pool, settings)
                 process_account(
                     account,
                     settings,
                     session_dir,
                     all_extracted_orders,
                     playwright_instance,
+                    proxy_cfg,
                 )
             except Exception as exc:
                 shop_hint = account.get("shop", account.get("username", "?"))

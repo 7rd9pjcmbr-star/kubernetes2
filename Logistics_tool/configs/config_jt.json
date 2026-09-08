@@ -1,4 +1,6 @@
 {
+  "proxy_file": "configs/proxy.txt",
+  "proxy_pool": [],
   "accounts": [
     {
       "username": "Tên shop / tài khoản J&T",
@@ -24,6 +26,14 @@
     "days_back": 3,
     "order_status": "IN_TRANSIT",
     "page_limit": 250,
-    "request_timeout_seconds": 20
+    "request_timeout_seconds": 20,
+    "anti_block": {
+      "enabled": true,
+      "delay_between_accounts_min": 8,
+      "delay_between_accounts_max": 18,
+      "max_retries": 3,
+      "retry_backoff_seconds": 6,
+      "require_proxy_on_vps": true
+    }
   }
 }
