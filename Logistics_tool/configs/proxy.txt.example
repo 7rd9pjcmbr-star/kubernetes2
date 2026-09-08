@@ -1,0 +1,7 @@
+# Mỗi dòng một proxy. Định dạng:
+# host:port
+# host:port:username:password
+#
+# Ví dụ:
+# 103.152.112.45:8080
+# 103.152.112.46:8080:user:pass

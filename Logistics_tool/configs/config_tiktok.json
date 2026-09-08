@@ -1,0 +1,38 @@
+{
+  "proxy_file": "configs/proxy.txt",
+  "proxy_pool": [],
+  "accounts": [
+    {
+      "shop": "ten_shop",
+      "username": "email_dang_nhap@example.com",
+      "password": "",
+      "proxy": {
+        "enabled": false,
+        "scheme": "http",
+        "host": "",
+        "port": 0,
+        "username": "",
+        "password": ""
+      }
+    }
+  ],
+  "settings": {
+    "omocaptcha_api_key": "",
+    "output_excel": "outputs/báo_cáo_đơn_hàng_tpos.xlsx",
+    "session_dir": "outputs/tpos_sessions",
+    "days_back": 3,
+    "page_size": 250,
+    "headless": false,
+    "anti_block": {
+      "enabled": true,
+      "delay_between_accounts_min": 10,
+      "delay_between_accounts_max": 22,
+      "max_retries": 3,
+      "retry_backoff_seconds": 8,
+      "require_proxy_on_vps": true,
+      "reuse_tpos_session": true,
+      "headless_on_vps": true,
+      "human_typing_delay_ms": 80
+    }
+  }
+}
