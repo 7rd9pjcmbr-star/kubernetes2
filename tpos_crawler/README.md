@@ -19,12 +19,23 @@ tpos_crawler/
 
 | Trường | Bắt buộc | Mô tả |
 |---|---|---|
-| `username` | Có | Mã/tài khoản J&T |
-| `password` | Có | Mật khẩu plaintext |
-| `customer_code` | Khuyến nghị | Mã khách hàng Open API |
-| `api_account` | Khuyến nghị | apiAccount header |
-| `private_key` | Khuyến nghị | Khóa ký request Open API |
+| `username` | Có | Tên shop hiển thị trên báo cáo Excel |
+| `password` | Không | Dự phòng (chưa dùng cho login tự động) |
+| `cookies.PHPSESSID` | Một trong hai | Cookie session J&T VIP |
+| `cookies.user_auth` | Một trong hai | Cookie session J&T VIP |
+| `cookie_excel` | Thay thế cookies | File Excel export cookie (cột name/value) |
 | `proxy` | Không | Proxy HTTP/S cho từng tài khoản |
+
+**Ưu tiên cookie:** `cookies` trong JSON → nếu trống thì đọc `cookie_excel`.
+
+**Settings:**
+
+| Trường | Mặc định | Mô tả |
+|---|---|---|
+| `output_excel` | `outputs/báo_cáo_đơn_đang_giao.xlsx` | File Excel đầu ra |
+| `days_back` | `3` | Số ngày lùi để lấy đơn |
+| `order_status` | `IN_TRANSIT` | Trạng thái đơn cần lọc |
+| `api_url` | `https://jtexpress.vn` | Endpoint POST lấy đơn |
 
 ### `configs/config_tiktok.json`
 
@@ -42,6 +53,7 @@ tpos_crawler/
 
 ```bash
 cd tpos_crawler
+pip install -r requirements.txt
 python jt_vietnam_api.py
 python tiktok_automation.py
 ```
