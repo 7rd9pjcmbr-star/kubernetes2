@@ -1,0 +1,22 @@
+{
+  "accounts": [
+    {
+      "username": "",
+      "password": "",
+      "access_token": "",
+      "shop_id": "",
+      "proxy": {
+        "enabled": false,
+        "scheme": "http",
+        "host": "",
+        "port": 0,
+        "username": "",
+        "password": ""
+      }
+    }
+  ],
+  "settings": {
+    "output_dir": "output/tiktok",
+    "request_timeout_seconds": 30
+  }
+}
