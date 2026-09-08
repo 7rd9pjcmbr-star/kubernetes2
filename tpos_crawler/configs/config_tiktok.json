@@ -1,10 +1,9 @@
 {
   "accounts": [
     {
-      "username": "",
+      "shop": "ten_shop",
+      "username": "email_dang_nhap@example.com",
       "password": "",
-      "access_token": "",
-      "shop_id": "",
       "proxy": {
         "enabled": false,
         "scheme": "http",
@@ -16,7 +15,11 @@
     }
   ],
   "settings": {
-    "output_dir": "output/tiktok",
-    "request_timeout_seconds": 30
+    "omocaptcha_api_key": "",
+    "output_excel": "outputs/báo_cáo_đơn_hàng_tpos.xlsx",
+    "session_dir": "outputs/tpos_sessions",
+    "days_back": 3,
+    "page_size": 250,
+    "headless": false
   }
 }

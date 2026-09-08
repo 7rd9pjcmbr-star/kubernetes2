@@ -37,15 +37,24 @@ tpos_crawler/
 | `order_status` | `IN_TRANSIT` | Trạng thái đơn cần lọc |
 | `api_url` | `https://jtexpress.vn` | Endpoint POST lấy đơn |
 
-### `configs/config_tiktok.json`
+### `configs/config_tiktok.json` (TPOS / TikTok livestream orders)
 
 | Trường | Bắt buộc | Mô tả |
 |---|---|---|
-| `username` | Có | Tài khoản TikTok Seller |
-| `password` | Có | Mật khẩu |
-| `access_token` | Khuyến nghị | Token TikTok Shop Open API để lấy đơn |
-| `shop_id` | Không | Shop ID nếu có nhiều shop |
-| `proxy` | Không | Proxy HTTP/S cho từng tài khoản |
+| `shop` | Có | Subdomain TPOS (vd: `myshop` → `myshop.tpos.vn`) |
+| `username` | Có | Email đăng nhập TPOS |
+| `password` | Có | Mật khẩu TPOS |
+| `proxy` | Không | Proxy Playwright cho từng tài khoản |
+
+**Settings:**
+
+| Trường | Mặc định | Mô tả |
+|---|---|---|
+| `omocaptcha_api_key` | _(trống)_ | API key OmoCaptcha giải ReCAPTCHA |
+| `output_excel` | `outputs/báo_cáo_đơn_hàng_tpos.xlsx` | File Excel đầu ra |
+| `session_dir` | `outputs/tpos_sessions` | Lưu session sau login |
+| `days_back` | `3` | Số ngày lùi để lấy đơn |
+| `headless` | `false` | `true` = chạy ẩn trình duyệt |
 
 Điền danh sách tài khoản vào file config tương ứng. Mỗi phần tử trong `accounts` là một tài khoản riêng.
 
@@ -54,6 +63,7 @@ tpos_crawler/
 ```bash
 cd tpos_crawler
 pip install -r requirements.txt
+playwright install chromium
 python jt_vietnam_api.py
 python tiktok_automation.py
 ```
