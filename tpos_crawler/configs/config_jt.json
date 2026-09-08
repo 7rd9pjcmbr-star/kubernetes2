@@ -1,11 +1,13 @@
 {
   "accounts": [
     {
-      "username": "",
+      "username": "Tên shop / tài khoản J&T",
       "password": "",
-      "customer_code": "",
-      "api_account": "",
-      "private_key": "",
+      "cookies": {
+        "PHPSESSID": "",
+        "user_auth": ""
+      },
+      "cookie_excel": "configs/cookie_tho.xlsx",
       "proxy": {
         "enabled": false,
         "scheme": "http",
@@ -17,7 +19,11 @@
     }
   ],
   "settings": {
-    "output_dir": "output/jt",
-    "request_timeout_seconds": 30
+    "output_excel": "outputs/báo_cáo_đơn_đang_giao.xlsx",
+    "api_url": "https://jtexpress.vn",
+    "days_back": 3,
+    "order_status": "IN_TRANSIT",
+    "page_limit": 250,
+    "request_timeout_seconds": 20
   }
 }
