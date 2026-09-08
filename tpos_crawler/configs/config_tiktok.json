@@ -1,0 +1,25 @@
+{
+  "accounts": [
+    {
+      "shop": "ten_shop",
+      "username": "email_dang_nhap@example.com",
+      "password": "",
+      "proxy": {
+        "enabled": false,
+        "scheme": "http",
+        "host": "",
+        "port": 0,
+        "username": "",
+        "password": ""
+      }
+    }
+  ],
+  "settings": {
+    "omocaptcha_api_key": "",
+    "output_excel": "outputs/báo_cáo_đơn_hàng_tpos.xlsx",
+    "session_dir": "outputs/tpos_sessions",
+    "days_back": 3,
+    "page_size": 250,
+    "headless": false
+  }
+}
