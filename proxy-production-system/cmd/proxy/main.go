@@ -50,6 +50,7 @@ func main() {
 
 		gatewayCfg := proxy.GatewayConfig{
 			PoolEntries:  cfg.Gateway.PoolEntries,
+			PoolFiles:    cfg.Gateway.PoolFiles,
 			Rotation:     cfg.Gateway.Rotation,
 			StickyTTL:    cfg.Gateway.StickyTTL,
 			HTTPAddress:  cfg.Gateway.HTTPAddress,

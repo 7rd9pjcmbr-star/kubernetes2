@@ -30,6 +30,7 @@ import (
 // GatewayConfig wires the VN-style forward proxy gateway.
 type GatewayConfig struct {
 	PoolEntries      []string
+	PoolFiles        []string
 	Rotation         RotationMode
 	StickyTTL        time.Duration
 	HTTPAddress      string
@@ -56,7 +57,7 @@ func NewGateway(cfg GatewayConfig, repo store.BackendRepository) (*Gateway, erro
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := syncService.InitialLoad(ctx, cfg.PoolEntries); err != nil {
+	if err := syncService.InitialLoad(ctx, cfg.PoolEntries, cfg.PoolFiles); err != nil {
 		return nil, fmt.Errorf("initial backend load: %w", err)
 	}
 

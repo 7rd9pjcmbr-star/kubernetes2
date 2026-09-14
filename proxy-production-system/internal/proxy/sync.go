@@ -48,13 +48,19 @@ func NewBackendSyncService(repo store.BackendRepository, manager *PoolManager, s
 	}
 }
 
-func (s *BackendSyncService) InitialLoad(ctx context.Context, bootstrapEntries []string) error {
+func (s *BackendSyncService) InitialLoad(ctx context.Context, bootstrapEntries, bootstrapFiles []string) error {
+	fileEntries, err := LoadPoolEntriesFromFiles(bootstrapFiles)
+	if err != nil {
+		return err
+	}
+	allBootstrap := append(append([]string{}, bootstrapEntries...), fileEntries...)
+
 	backends, err := s.repo.List(ctx)
 	if err != nil {
 		return err
 	}
-	if len(backends) == 0 && len(bootstrapEntries) > 0 {
-		if err := s.seedFromEntries(ctx, bootstrapEntries); err != nil {
+	if len(backends) == 0 && len(allBootstrap) > 0 {
+		if err := s.seedFromEntries(ctx, allBootstrap); err != nil {
 			return err
 		}
 		backends, err = s.repo.List(ctx)

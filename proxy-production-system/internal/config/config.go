@@ -59,6 +59,7 @@ type Config struct {
 type GatewayConfig struct {
 	Enabled       bool
 	PoolEntries   []string
+	PoolFiles     []string
 	Rotation      proxy.RotationMode
 	StickyTTL     time.Duration
 	HTTPAddress   string
@@ -88,8 +89,9 @@ func LoadFromEnv() (Config, error) {
 	}
 
 	poolEntries := splitCSV(os.Getenv("PROXY_POOL"))
+	poolFiles := splitCSV(os.Getenv("PROXY_POOL_FILES"))
 	upstreams := splitCSV(os.Getenv("PROXY_UPSTREAMS"))
-	cfg.Gateway = loadGatewayConfig(poolEntries)
+	cfg.Gateway = loadGatewayConfig(poolEntries, poolFiles)
 
 	if cfg.Gateway.Enabled {
 		if len(upstreams) == 0 {
@@ -106,7 +108,7 @@ func LoadFromEnv() (Config, error) {
 	return cfg, nil
 }
 
-func loadGatewayConfig(poolEntries []string) GatewayConfig {
+func loadGatewayConfig(poolEntries, poolFiles []string) GatewayConfig {
 	enabled := parseBool(os.Getenv("PROXY_GATEWAY_ENABLED"))
 	if !enabled && len(poolEntries) > 0 {
 		enabled = true
@@ -120,6 +122,7 @@ func loadGatewayConfig(poolEntries []string) GatewayConfig {
 	return GatewayConfig{
 		Enabled:         enabled,
 		PoolEntries:     poolEntries,
+		PoolFiles:       poolFiles,
 		Rotation:        rotation,
 		StickyTTL:       getDurationEnv("PROXY_STICKY_TTL", defaultStickyTTL),
 		HTTPAddress:     getEnv("PROXY_GATEWAY_HTTP_ADDRESS", defaultGatewayHTTP),
@@ -154,8 +157,8 @@ func validate(cfg Config) error {
 			return fmt.Errorf("invalid upstream %q: URL must start with http:// or https://", upstream)
 		}
 	}
-	if cfg.Gateway.Enabled && len(cfg.Gateway.PoolEntries) == 0 && cfg.Gateway.MongoURI == "" {
-		return fmt.Errorf("PROXY_GATEWAY_ENABLED requires PROXY_POOL or MONGO_URI")
+	if cfg.Gateway.Enabled && len(cfg.Gateway.PoolEntries) == 0 && len(cfg.Gateway.PoolFiles) == 0 && cfg.Gateway.MongoURI == "" {
+		return fmt.Errorf("PROXY_GATEWAY_ENABLED requires PROXY_POOL, PROXY_POOL_FILES, or MONGO_URI")
 	}
 	if cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownPeriod <= 0 {
 		return fmt.Errorf("timeouts must be greater than zero")

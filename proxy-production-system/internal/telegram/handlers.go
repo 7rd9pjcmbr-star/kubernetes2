@@ -19,6 +19,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -78,6 +79,43 @@ func (b *Bot) handleList(ctx context.Context, chatID int64) {
 		lines = append(lines, formatBackendLine(backend))
 	}
 	b.reply(chatID, strings.Join(lines, "\n"))
+}
+
+func (b *Bot) handlePoolFiles(chatID int64) {
+	const (
+		hcmFile = "data/proxy-pool-vn-hcm.txt"
+		hnFile  = "data/proxy-pool-vn-hn.txt"
+	)
+	hcmCount, err := countPoolFileLines(hcmFile)
+	if err != nil {
+		b.reply(chatID, fmt.Sprintf("Loi doc %s: %v", hcmFile, err))
+		return
+	}
+	hnCount, err := countPoolFileLines(hnFile)
+	if err != nil {
+		b.reply(chatID, fmt.Sprintf("Loi doc %s: %v", hnFile, err))
+		return
+	}
+	b.reply(chatID, fmt.Sprintf(
+		"*Proxy pool files*\n%s: %d\n%s: %d\nTong: %d",
+		hcmFile, hcmCount, hnFile, hnCount, hcmCount+hnCount,
+	))
+}
+
+func countPoolFileLines(path string) (int, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		count++
+	}
+	return count, nil
 }
 
 func (b *Bot) handleStats(ctx context.Context, chatID int64) {

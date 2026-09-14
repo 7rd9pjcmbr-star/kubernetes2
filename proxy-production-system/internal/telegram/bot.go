@@ -111,6 +111,8 @@ func (b *Bot) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 		b.handleList(ctx, message.Chat.ID)
 	case text == "/stats":
 		b.handleStats(ctx, message.Chat.ID)
+	case text == "/poolfiles":
+		b.handlePoolFiles(message.Chat.ID)
 	case strings.HasPrefix(text, "/add "):
 		b.handleAdd(ctx, message.Chat.ID, strings.TrimPrefix(text, "/add "))
 	case strings.HasPrefix(text, "/del "):
@@ -162,6 +164,7 @@ func helpText() string {
 /unsubscribe — tat canh bao
 /list — danh sach backend
 /stats — thong ke pool
+/poolfiles — dem 150 proxy trong 2 file data
 /add ip port type country — them node (vd: /add 203.0.113.1 3128 4g VN)
 /del id — xoa backend
 /status id active|dead|testing — doi trang thai
