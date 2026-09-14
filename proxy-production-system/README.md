@@ -77,14 +77,14 @@ Chỉ đưa vào staging/production khi thấy:
 
 Chi tiết: `docs/preflight-test.md`
 
-### Cấu hình proxy nội bộ (upstream IP nội bộ)
+### Proxy logistics (J&T only)
 
 ```bash
-cp .env.internal.example .env
+cp .env.logistics.example .env
 ./scripts/reconnect-internal.sh
 ```
 
-Chi tiết: `docs/internal-upstream.md`
+Chi tiết: `docs/logistics-proxy.md`
 
 Nghiệm thu nhanh / tự thử tay:
 
@@ -167,6 +167,7 @@ make release-ready VERSION=v1.0.0
 
 Checklist bàn giao:
 
+- `docs/logistics-proxy.md`
 - `docs/preflight-test.md`
 - `docs/eval-guide.md`
 - `docs/quickstart-5m.md`

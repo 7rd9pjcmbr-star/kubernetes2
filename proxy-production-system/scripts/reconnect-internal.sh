@@ -15,8 +15,12 @@ if [[ "${1:-}" == "--check-only" ]]; then
 fi
 
 if [[ ! -f .env ]]; then
-  echo "Creating .env from internal profile..."
-  cp .env.internal.example .env
+  echo "Creating .env from logistics profile..."
+  if [[ -f .env.logistics.example ]]; then
+    cp .env.logistics.example .env
+  else
+    cp .env.internal.example .env
+  fi
 fi
 
 set -a
@@ -34,7 +38,7 @@ LISTEN="${PROXY_LISTEN_ADDRESS:-:8080}"
 INSECURE="${PROXY_INSECURE_SKIP_VERIFY:-false}"
 
 echo "========================================"
-echo " Internal proxy reconnect"
+echo " Logistics proxy reconnect (J&T only)"
 echo "========================================"
 echo " listen:    ${LISTEN}"
 echo " upstreams: ${UPSTREAMS}"
