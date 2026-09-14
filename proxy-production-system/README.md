@@ -3,6 +3,7 @@
 Scaffold dự án proxy production-ready ở mức nền tảng:
 
 - Reverse proxy round-robin nhiều upstream.
+- **Gateway proxy kiểu dân chơi VN**: HTTP + SOCKS5, xoay IP, sticky session, auth, whitelist IP.
 - Health check endpoint (`/healthz`) cho liveness/readiness.
 - Graceful shutdown để tránh rớt request khi rollout.
 - Runtime config bằng environment variables.
@@ -17,7 +18,11 @@ proxy-production-system/
 ├── internal/config/config.go
 ├── internal/proxy/
 │   ├── pool.go
-│   ├── pool_test.go
+│   ├── gateway.go
+│   ├── forward_http.go
+│   ├── socks5_server.go
+│   ├── auth.go
+│   ├── health.go
 │   └── reverse_proxy.go
 ├── deployments/
 │   ├── docker/Dockerfile
@@ -54,6 +59,141 @@ curl -i http://localhost:8080
 | `PROXY_WRITE_TIMEOUT` | Không | `15s` | Write timeout cho HTTP server |
 | `PROXY_IDLE_TIMEOUT` | Không | `60s` | Idle timeout cho keep-alive |
 | `PROXY_SHUTDOWN_TIMEOUT` | Không | `20s` | Timeout cho graceful shutdown |
+
+### Gateway proxy (HTTP/SOCKS5 — kiểu seller/automation VN)
+
+| Biến | Bắt buộc | Mặc định | Ý nghĩa |
+|---|---|---|---|
+| `PROXY_GATEWAY_ENABLED` | Không | `false` (auto `true` nếu có `PROXY_POOL`) | Bật gateway forward proxy |
+| `PROXY_POOL` | Có (khi bật gateway) | - | CSV entry dạng `url\|kind\|region` |
+| `PROXY_GATEWAY_HTTP_ADDRESS` | Không | `:8888` | HTTP/HTTPS proxy listen |
+| `PROXY_GATEWAY_SOCKS_ADDRESS` | Không | `:1080` | SOCKS5 proxy listen |
+| `PROXY_GATEWAY_ADMIN_ADDRESS` | Không | _(trống)_ | Admin API (`/healthz`, `/api/v1/pool/stats`) |
+| `PROXY_GATEWAY_USER` / `PROXY_GATEWAY_PASS` | Khuyến nghị | _(trống)_ | Auth kiểu `user:pass` cho client |
+| `PROXY_ROTATION` | Không | `round_robin` | `round_robin`, `random`, `sticky`, `quality` |
+| `PROXY_STICKY_TTL` | Không | `10m` | Thời gian giữ IP khi dùng sticky |
+| `PROXY_CLIENT_WHITELIST` | Không | _(trống)_ | Chỉ cho phép IP client (sandbox) |
+| `PROXY_HEALTH_INTERVAL` | Không | `30s` | Chu kỳ health check upstream |
+| `PROXY_ADMIN_TOKEN` | Không | _(trống)_ | Header `X-Admin-Token` cho stats API |
+| `PROXY_ELITE_MODE` | Không | `true` | Xóa header lộ proxy (`X-Forwarded-For`, `Via`, …) trước khi forward |
+
+**Loại node (`kind`)**: `residential`, `4g`, `isp`, `datacenter`.
+
+**Model MongoDB (`internal/model/proxy_backend.go`)** — mỗi backend có `latency`, `success_rate`, `anonymity` (`elite|anonymous|transparent`), `status` (`active|dead|testing`). Gateway mode `quality` ưu tiên node elite, latency thấp, success rate cao.
+
+**PROXY_POOL mở rộng** (tùy chọn thêm metrics bootstrap):
+
+```text
+http://ip:port|4g|VN|elite|45|99.5
+           ^url ^kind ^country ^anonymity ^latency_ms ^success_rate
+```
+
+**Sticky session theo username** (pattern phổ biến VN):
+
+```text
+player-session-shop123:change-me
+```
+
+Client dùng username `player-session-shop123` sẽ giữ cùng exit IP trong `PROXY_STICKY_TTL`.
+
+**Test nhanh gateway**:
+
+```bash
+# HTTP proxy
+curl -x http://player:change-me@localhost:8888 https://api.ipify.org
+
+# SOCKS5 (cần curl hỗ trợ socks5)
+curl --socks5 player:change-me@localhost:1080 https://api.ipify.org
+
+# Stats pool
+curl -H "X-Admin-Token: your-token" http://localhost:9090/api/v1/pool/stats
+```
+
+> Gateway là **lớp quản lý pool** — bạn cắm upstream thật (4G dongle, residential provider, SOCKS5 supplier) vào `PROXY_POOL`. Hệ thống lo auth, xoay IP, sticky, health check.
+
+## 3.1) Kiến trúc tối ưu (MongoDB + CRUD + hot reload)
+
+```text
+Client (AdsPower/curl)
+    -> HTTP :8888 / SOCKS5 :1080
+        -> PoolManager (quality/sticky rotation)
+            -> Upstream exit IP (4G/residential)
+Admin/Dashboard
+    -> REST :9090 /api/v1/backends
+        -> MongoDB (ProxyBackend collection)
+            -> sync every 10s + hot reload on CRUD
+```
+
+| Thành phần | Vai trò |
+|---|---|
+| `internal/model/proxy_backend.go` | Schema MongoDB |
+| `internal/store/mongo.go` | Persistence + metrics flush |
+| `internal/proxy/pool_manager.go` | Hot reload pool không downtime |
+| `internal/proxy/sync.go` | Bootstrap từ `PROXY_POOL`, sync định kỳ |
+| Admin API | CRUD backend + `/api/v1/pool/reload` |
+
+**Env MongoDB**:
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `MONGO_URI` | _(trống = in-memory)_ | URI MongoDB |
+| `MONGO_DATABASE` | `proxy_gateway` | Database |
+| `MONGO_COLLECTION` | `backends` | Collection |
+| `MONGO_SYNC_INTERVAL` | `10s` | Reload pool từ Mongo |
+| `MONGO_METRICS_FLUSH_INTERVAL` | `30s` | Ghi latency/success_rate về Mongo |
+
+**Admin CRUD** (header `X-Admin-Token` nếu có `PROXY_ADMIN_TOKEN`):
+
+```bash
+# Thêm backend mới (hot reload ngay)
+curl -X POST http://localhost:9090/api/v1/backends \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: change-me-admin" \
+  -d '{"ip":"203.0.113.10","port":3128,"type":"4g","country":"VN","anonymity":"elite","status":"active","latency":35,"success_rate":99}'
+
+# List / update / delete
+curl http://localhost:9090/api/v1/backends
+curl -X PUT http://localhost:9090/api/v1/backends/{id} ...
+curl -X DELETE http://localhost:9090/api/v1/backends/{id}
+
+# Force reload pool từ Mongo
+curl -X POST http://localhost:9090/api/v1/pool/reload
+```
+
+Lần chạy đầu: nếu Mongo trống, gateway **seed** từ `PROXY_POOL` rồi dùng Mongo làm nguồn sự thật.
+
+## 3.2) @TondaithanhBot (Telegram + MongoDB)
+
+Bot Telegram doc/ghi trực tiếp collection `backends` trong MongoDB — gateway tự sync pool sau ~10s.
+
+```bash
+# .env
+TELEGRAM_BOT_TOKEN=<token cua @TondaithanhBot>
+TELEGRAM_ADMIN_CHAT_IDS=123456789   # chat ID admin, CSV neu nhieu nguoi
+MONGO_URI=mongodb://mongo:27017
+```
+
+`docker compose up` chạy service `tondaithanh-bot` song song với gateway.
+
+**Bảng điều khiển Telegram** (inline + menu nhanh):
+
+Gửi `/start` hoặc `/panel` để mở bảng nút bấm:
+
+- 📊 Thống kê — active/dead/testing/latency
+- 📋 Danh sách — phân trang 8 backend/trang (150 proxy)
+- 📁 150 Proxy files — đếm 2 file HCM/HN
+- ☠️ Node dead — liệt kê backend lỗi
+- 🔔/🔕 Subscribe cảnh báo
+
+**Lenh text** (nâng cao):
+
+| Lenh | Mo ta |
+|---|---|
+| `/add 203.0.113.1 3128 4g VN` | Them backend vao Mongo |
+| `/del <id>` | Xoa backend |
+| `/status <id> dead` | Doi trang thai thu cong |
+
+Bot tu dong broadcast khi backend chuyen sang `dead` (poll Mongo moi 30s).
 
 ## 4) Chạy test
 
