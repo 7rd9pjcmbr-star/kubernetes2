@@ -32,9 +32,9 @@ const botUsername = "TondaithanhBot"
 
 // Config controls @TondaithanhBot integration with MongoDB.
 type Config struct {
-	Token           string
-	AdminChatIDs    map[int64]struct{}
-	AlertEvery      time.Duration
+	Token        string
+	AdminChatIDs map[int64]struct{}
+	AlertEvery   time.Duration
 }
 
 // Bot manages proxy backends in MongoDB via Telegram commands.
@@ -66,6 +66,7 @@ func NewBot(cfg Config, backends store.BackendRepository, chats *store.TelegramC
 
 func (b *Bot) Run(ctx context.Context) error {
 	log.Printf("telegram bot @%s connected", botUsername)
+	b.setupCommands()
 
 	go b.runAlertMonitor(ctx)
 
@@ -80,6 +81,10 @@ func (b *Bot) Run(ctx context.Context) error {
 		case update, ok := <-updates:
 			if !ok {
 				return nil
+			}
+			if update.CallbackQuery != nil {
+				b.handleCallback(ctx, update.CallbackQuery)
+				continue
 			}
 			if update.Message == nil {
 				continue
@@ -101,18 +106,21 @@ func (b *Bot) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	}
 
 	switch {
-	case text == "/start" || text == "/help":
-		b.reply(message.Chat.ID, helpText())
+	case text == "/start" || text == "/panel" || text == "🎛 Bảng điều khiển":
+		b.showPanel(message.Chat.ID)
+	case text == "/help":
+		b.sendPanel(message.Chat.ID, helpText(), backHomeKeyboard())
+	case text == "📊 Thống kê" || text == "/stats":
+		b.sendPanel(message.Chat.ID, b.statsText(ctx), backHomeKeyboard())
+	case text == "📋 Danh sách" || text == "/list":
+		body, keyboard := b.listPage(ctx, 0)
+		b.sendPanel(message.Chat.ID, body, keyboard)
+	case text == "📁 150 Proxy" || text == "/poolfiles":
+		b.sendPanel(message.Chat.ID, b.poolFilesText(), backHomeKeyboard())
 	case text == "/subscribe":
 		b.handleSubscribe(ctx, message)
 	case text == "/unsubscribe":
 		b.handleUnsubscribe(ctx, message)
-	case text == "/list":
-		b.handleList(ctx, message.Chat.ID)
-	case text == "/stats":
-		b.handleStats(ctx, message.Chat.ID)
-	case text == "/poolfiles":
-		b.handlePoolFiles(message.Chat.ID)
 	case strings.HasPrefix(text, "/add "):
 		b.handleAdd(ctx, message.Chat.ID, strings.TrimPrefix(text, "/add "))
 	case strings.HasPrefix(text, "/del "):
@@ -120,21 +128,20 @@ func (b *Bot) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	case strings.HasPrefix(text, "/status "):
 		b.handleSetStatus(ctx, message.Chat.ID, strings.TrimPrefix(text, "/status "))
 	default:
-		b.reply(message.Chat.ID, "Lenh khong hop le. Go /help de xem danh sach.")
+		b.reply(message.Chat.ID, "Lenh khong hop le. Go /panel de mo bang dieu khien.")
 	}
 }
 
 func (b *Bot) authorized(message *tgbotapi.Message) bool {
+	return b.authorizedChat(message.Chat.ID)
+}
+
+func (b *Bot) authorizedChat(chatID int64) bool {
 	if len(b.cfg.AdminChatIDs) == 0 {
 		return true
 	}
-	if _, ok := b.cfg.AdminChatIDs[message.Chat.ID]; ok {
-		return true
-	}
-	if message.From != nil && message.From.UserName == botUsername {
-		return true
-	}
-	return false
+	_, ok := b.cfg.AdminChatIDs[chatID]
+	return ok
 }
 
 func (b *Bot) reply(chatID int64, text string) {
@@ -158,15 +165,18 @@ func (b *Bot) broadcast(ctx context.Context, text string) {
 
 func helpText() string {
 	return strings.TrimSpace(`
-*@TondaithanhBot* — quan tri proxy pool (MongoDB)
+*❓ Trợ giúp @TondaithanhBot*
 
-/subscribe — nhan canh bao node dead
-/unsubscribe — tat canh bao
-/list — danh sach backend
-/stats — thong ke pool
-/poolfiles — dem 150 proxy trong 2 file data
-/add ip port type country — them node (vd: /add 203.0.113.1 3128 4g VN)
-/del id — xoa backend
-/status id active|dead|testing — doi trang thai
+/panel — mở bảng điều khiển (nút bấm)
+/stats — thống kê pool MongoDB
+/list — danh sách backend (phân trang)
+/poolfiles — 150 proxy trong 2 file
+
+*Lệnh nâng cao:*
+/add ip port type country
+/del id
+/status id active|dead|testing
+/subscribe — bật cảnh báo dead
+/unsubscribe — tắt cảnh báo
 `)
 }

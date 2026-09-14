@@ -175,13 +175,20 @@ MONGO_URI=mongodb://mongo:27017
 
 `docker compose up` chạy service `tondaithanh-bot` song song với gateway.
 
-**Lenh Telegram**:
+**Bảng điều khiển Telegram** (inline + menu nhanh):
+
+Gửi `/start` hoặc `/panel` để mở bảng nút bấm:
+
+- 📊 Thống kê — active/dead/testing/latency
+- 📋 Danh sách — phân trang 8 backend/trang (150 proxy)
+- 📁 150 Proxy files — đếm 2 file HCM/HN
+- ☠️ Node dead — liệt kê backend lỗi
+- 🔔/🔕 Subscribe cảnh báo
+
+**Lenh text** (nâng cao):
 
 | Lenh | Mo ta |
 |---|---|
-| `/subscribe` | Luu chat vao Mongo `telegram_chats`, nhan canh bao dead |
-| `/list` | Xem pool tu MongoDB |
-| `/stats` | Tong active/dead/testing |
 | `/add 203.0.113.1 3128 4g VN` | Them backend vao Mongo |
 | `/del <id>` | Xoa backend |
 | `/status <id> dead` | Doi trang thai thu cong |
