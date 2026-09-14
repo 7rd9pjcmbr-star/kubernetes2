@@ -21,6 +21,12 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: gateway-http
+              containerPort: 8888
+            - name: gateway-socks
+              containerPort: 1080
+            - name: gateway-admin
+              containerPort: 9090
           envFrom:
             - configMapRef:
                 name: proxy-system-config
