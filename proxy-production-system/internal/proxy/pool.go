@@ -20,9 +20,12 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"proxy-production-system/internal/model"
 )
 
 type upstreamPool struct {
@@ -56,7 +59,7 @@ type stickyEntry struct {
 	expiresAt time.Time
 }
 
-// NewGatewayPool builds a pool from CSV entries: url|kind|region.
+// NewGatewayPool builds a pool from CSV entries: url|kind|region[|anonymity|latency|success_rate].
 func NewGatewayPool(entries []string, rotation RotationMode, stickyTTL time.Duration) (*GatewayPool, error) {
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("at least one PROXY_POOL entry is required")
@@ -73,13 +76,36 @@ func NewGatewayPool(entries []string, rotation RotationMode, stickyTTL time.Dura
 		}
 		nodes = append(nodes, node)
 	}
+	return newGatewayPool(nodes, rotation, stickyTTL), nil
+}
 
+// NewGatewayPoolFromBackends builds a pool from Mongo-ready backend records.
+func NewGatewayPoolFromBackends(backends []model.ProxyBackend, rotation RotationMode, stickyTTL time.Duration) (*GatewayPool, error) {
+	if len(backends) == 0 {
+		return nil, fmt.Errorf("at least one backend is required")
+	}
+	if stickyTTL <= 0 {
+		stickyTTL = 10 * time.Minute
+	}
+
+	nodes := make([]*Node, 0, len(backends))
+	for _, backend := range backends {
+		node, err := newNodeFromBackend(backend)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, node)
+	}
+	return newGatewayPool(nodes, rotation, stickyTTL), nil
+}
+
+func newGatewayPool(nodes []*Node, rotation RotationMode, stickyTTL time.Duration) *GatewayPool {
 	return &GatewayPool{
 		nodes:     nodes,
 		rotation:  rotation,
 		stickyTTL: stickyTTL,
 		sticky:    make(map[string]stickyEntry),
-	}, nil
+	}
 }
 
 func parsePoolEntry(entry string) (*Node, error) {
@@ -90,15 +116,50 @@ func parsePoolEntry(entry string) (*Node, error) {
 
 	kind := "residential"
 	region := "VN"
+	anonymity := model.AnonymityElite
+	latency := 0
+	successRate := 100.0
+
 	switch len(parts) {
 	case 2:
 		kind = parts[1]
 	case 3:
 		kind = parts[1]
 		region = parts[2]
+	case 4:
+		kind = parts[1]
+		region = parts[2]
+		anonymity = parts[3]
+	case 5:
+		kind = parts[1]
+		region = parts[2]
+		anonymity = parts[3]
+		if parsed, err := strconv.Atoi(parts[4]); err == nil {
+			latency = parsed
+		}
+	case 6:
+		kind = parts[1]
+		region = parts[2]
+		anonymity = parts[3]
+		if parsed, err := strconv.Atoi(parts[4]); err == nil {
+			latency = parsed
+		}
+		if parsed, err := strconv.ParseFloat(parts[5], 64); err == nil {
+			successRate = parsed
+		}
 	}
 
-	return newNode(parts[0], kind, region)
+	node, err := newNode(parts[0], kind, region)
+	if err != nil {
+		return nil, err
+	}
+
+	node.mu.Lock()
+	node.backend.Anonymity = anonymity
+	node.backend.Latency = latency
+	node.backend.SuccessRate = successRate
+	node.mu.Unlock()
+	return node, nil
 }
 
 func splitPipe(value string) []string {
@@ -170,9 +231,24 @@ func (p *GatewayPool) Select(sessionID string) (*Node, error) {
 		return node, nil
 	case RotationRandom:
 		return p.pickRandom(healthy), nil
+	case RotationQuality:
+		return p.pickBestQuality(healthy), nil
 	default:
 		return p.pickRoundRobin(healthy), nil
 	}
+}
+
+func (p *GatewayPool) pickBestQuality(nodes []*Node) *Node {
+	best := nodes[0]
+	bestScore := best.BackendSnapshot().QualityScore()
+	for _, node := range nodes[1:] {
+		score := node.BackendSnapshot().QualityScore()
+		if score > bestScore {
+			best = node
+			bestScore = score
+		}
+	}
+	return best
 }
 
 func (p *GatewayPool) healthyNodes() []*Node {
@@ -212,7 +288,7 @@ func (p *GatewayPool) stickyNode(sessionID string, healthy []*Node) *Node {
 	}
 
 	for _, node := range healthy {
-		if node.ID == entry.nodeID {
+		if node.ID() == entry.nodeID {
 			return node
 		}
 	}
@@ -222,7 +298,7 @@ func (p *GatewayPool) stickyNode(sessionID string, healthy []*Node) *Node {
 func (p *GatewayPool) rememberSticky(sessionID string, node *Node) {
 	p.stickyMu.Lock()
 	p.sticky[sessionID] = stickyEntry{
-		nodeID:    node.ID,
+		nodeID:    node.ID(),
 		expiresAt: time.Now().Add(p.stickyTTL),
 	}
 	p.stickyMu.Unlock()

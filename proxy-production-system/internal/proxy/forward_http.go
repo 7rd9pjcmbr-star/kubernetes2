@@ -88,7 +88,7 @@ func (p *ForwardHTTPProxy) handleConnect(w http.ResponseWriter, r *http.Request,
 	upstreamConn, err := dialViaNode(ctx, node, target)
 	if err != nil {
 		node.MarkFailure()
-		log.Printf("connect upstream node=%s target=%s err=%v", node.ID, target, err)
+		log.Printf("connect upstream node=%s target=%s err=%v", node.ID(), target, err)
 		_, _ = clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
 		return
 	}

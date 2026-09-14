@@ -48,19 +48,23 @@ func (h *HealthChecker) Run(ctx context.Context) {
 
 func (h *HealthChecker) checkAll() {
 	for _, node := range h.Pool.AllNodes() {
-		if err := probeNode(node); err != nil {
-			node.MarkFailure()
-			log.Printf("health probe failed node=%s err=%v", node.ID, err)
+		latencyMS, err := probeNode(node)
+		checkedAt := time.Now()
+		if err != nil {
+			node.SetProbeResult(false, latencyMS, checkedAt)
+			log.Printf("health probe failed node=%s err=%v", node.ID(), err)
 			continue
 		}
-		node.MarkSuccess()
+		node.SetProbeResult(true, latencyMS, checkedAt)
 	}
 }
 
-func probeNode(node *Node) error {
+func probeNode(node *Node) (int, error) {
+	start := time.Now()
 	conn, err := net.DialTimeout("tcp", node.URL.Host, 5*time.Second)
+	latencyMS := int(time.Since(start).Milliseconds())
 	if err != nil {
-		return err
+		return latencyMS, err
 	}
-	return conn.Close()
+	return latencyMS, conn.Close()
 }

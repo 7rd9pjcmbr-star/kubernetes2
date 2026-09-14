@@ -45,8 +45,8 @@ func TestGatewayPoolStickySessionKeepsSameNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second Select failed: %v", err)
 	}
-	if first.ID != second.ID {
-		t.Fatalf("sticky session changed node: first=%q second=%q", first.ID, second.ID)
+	if first.ID() != second.ID() {
+		t.Fatalf("sticky session changed node: first=%q second=%q", first.ID(), second.ID())
 	}
 }
 

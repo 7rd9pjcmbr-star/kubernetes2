@@ -70,7 +70,7 @@ curl -i http://localhost:8080
 | `PROXY_GATEWAY_SOCKS_ADDRESS` | Không | `:1080` | SOCKS5 proxy listen |
 | `PROXY_GATEWAY_ADMIN_ADDRESS` | Không | _(trống)_ | Admin API (`/healthz`, `/api/v1/pool/stats`) |
 | `PROXY_GATEWAY_USER` / `PROXY_GATEWAY_PASS` | Khuyến nghị | _(trống)_ | Auth kiểu `user:pass` cho client |
-| `PROXY_ROTATION` | Không | `round_robin` | `round_robin`, `random`, `sticky` |
+| `PROXY_ROTATION` | Không | `round_robin` | `round_robin`, `random`, `sticky`, `quality` |
 | `PROXY_STICKY_TTL` | Không | `10m` | Thời gian giữ IP khi dùng sticky |
 | `PROXY_CLIENT_WHITELIST` | Không | _(trống)_ | Chỉ cho phép IP client (sandbox) |
 | `PROXY_HEALTH_INTERVAL` | Không | `30s` | Chu kỳ health check upstream |
@@ -78,6 +78,15 @@ curl -i http://localhost:8080
 | `PROXY_ELITE_MODE` | Không | `true` | Xóa header lộ proxy (`X-Forwarded-For`, `Via`, …) trước khi forward |
 
 **Loại node (`kind`)**: `residential`, `4g`, `isp`, `datacenter`.
+
+**Model MongoDB (`internal/model/proxy_backend.go`)** — mỗi backend có `latency`, `success_rate`, `anonymity` (`elite|anonymous|transparent`), `status` (`active|dead|testing`). Gateway mode `quality` ưu tiên node elite, latency thấp, success rate cao.
+
+**PROXY_POOL mở rộng** (tùy chọn thêm metrics bootstrap):
+
+```text
+http://ip:port|4g|VN|elite|45|99.5
+           ^url ^kind ^country ^anonymity ^latency_ms ^success_rate
+```
 
 **Sticky session theo username** (pattern phổ biến VN):
 

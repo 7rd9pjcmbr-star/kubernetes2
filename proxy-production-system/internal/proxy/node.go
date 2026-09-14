@@ -20,7 +20,11 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
+
+	"proxy-production-system/internal/model"
 )
 
 // NodeKind labels upstream quality tier for VN automation workloads.
@@ -35,13 +39,29 @@ const (
 
 // Node is one upstream exit IP exposed through the gateway.
 type Node struct {
-	ID       string
-	URL      *url.URL
-	Kind     NodeKind
-	Region   string
-	healthy  atomic.Bool
-	failures atomic.Uint64
-	success  atomic.Uint64
+	URL                 *url.URL
+	mu                  sync.RWMutex
+	backend             model.ProxyBackend
+	consecutiveFailures atomic.Uint64
+}
+
+func newNodeFromBackend(backend model.ProxyBackend) (*Node, error) {
+	now := time.Now()
+	backend.Normalize(now)
+
+	rawURL := backend.UpstreamURL()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse upstream %q: %w", rawURL, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return nil, fmt.Errorf("upstream %q must include scheme and host", rawURL)
+	}
+
+	return &Node{
+		URL:     parsed,
+		backend: backend,
+	}, nil
 }
 
 func newNode(rawURL, kind, region string) (*Node, error) {
@@ -53,70 +73,134 @@ func newNode(rawURL, kind, region string) (*Node, error) {
 		return nil, fmt.Errorf("upstream %q must include scheme and host", rawURL)
 	}
 
-	nodeKind, err := parseNodeKind(kind)
-	if err != nil {
-		return nil, err
+	host, portStr, splitErr := splitHostPort(parsed.Host)
+	if splitErr != nil {
+		return nil, splitErr
+	}
+	port := 0
+	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+		return nil, fmt.Errorf("parse port from %q: %w", parsed.Host, err)
 	}
 
-	node := &Node{
+	backend := model.ProxyBackend{
 		ID:     parsed.Host,
-		URL:    parsed,
-		Kind:   nodeKind,
-		Region: strings.TrimSpace(region),
+		IP:     host,
+		Port:   port,
+		Type:   parsed.Scheme,
+		Country: strings.TrimSpace(region),
 	}
-	node.healthy.Store(true)
-	return node, nil
+	if kind != "" {
+		backend.Type = strings.ToLower(strings.TrimSpace(kind))
+	}
+	return newNodeFromBackend(backend)
 }
 
-func parseNodeKind(raw string) (NodeKind, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", "residential", "resi":
-		return NodeKindResidential, nil
-	case "4g", "mobile", "lte":
-		return NodeKindMobile4G, nil
-	case "isp", "static":
-		return NodeKindISP, nil
-	case "datacenter", "dc", "server":
-		return NodeKindDatacenter, nil
-	default:
-		return "", fmt.Errorf("unknown node kind %q", raw)
+func splitHostPort(hostport string) (host, port string, err error) {
+	if strings.HasPrefix(hostport, "[") {
+		end := strings.Index(hostport, "]")
+		if end < 0 {
+			return "", "", fmt.Errorf("invalid hostport %q", hostport)
+		}
+		host = hostport[1:end]
+		rest := hostport[end+1:]
+		if rest == "" {
+			return host, "80", nil
+		}
+		if !strings.HasPrefix(rest, ":") {
+			return "", "", fmt.Errorf("invalid hostport %q", hostport)
+		}
+		return host, rest[1:], nil
 	}
+
+	parts := strings.Split(hostport, ":")
+	if len(parts) == 1 {
+		return parts[0], "80", nil
+	}
+	return strings.Join(parts[:len(parts)-1], ":"), parts[len(parts)-1], nil
+}
+
+func (n *Node) ID() string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.backend.NodeKey()
 }
 
 func (n *Node) Healthy() bool {
-	return n.healthy.Load()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	if n.backend.Status == model.BackendStatusDead {
+		return false
+	}
+	return n.consecutiveFailures.Load() < 3
 }
 
 func (n *Node) MarkSuccess() {
-	n.success.Add(1)
-	n.failures.Store(0)
-	n.healthy.Store(true)
+	n.consecutiveFailures.Store(0)
+	n.recordOutcome(true)
 }
 
 func (n *Node) MarkFailure() {
-	n.failures.Add(1)
-	if n.failures.Load() >= 3 {
-		n.healthy.Store(false)
+	n.consecutiveFailures.Add(1)
+	n.recordOutcome(false)
+}
+
+func (n *Node) recordOutcome(success bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.backend.RecordRequest(success, time.Now())
+}
+
+func (n *Node) SetProbeResult(success bool, latencyMS int, checkedAt time.Time) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.backend.Latency = latencyMS
+	n.backend.LastChecked = checkedAt
+	if success {
+		n.consecutiveFailures.Store(0)
+		if n.backend.Status == model.BackendStatusDead && n.backend.SuccessRate >= 50 {
+			n.backend.Status = model.BackendStatusTesting
+		}
+	} else {
+		n.backend.Status = model.BackendStatusTesting
 	}
 }
 
+func (n *Node) BackendSnapshot() model.ProxyBackend {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.backend
+}
+
 func (n *Node) Stats() NodeStats {
+	backend := n.BackendSnapshot()
 	return NodeStats{
-		ID:       n.ID,
-		Kind:     string(n.Kind),
-		Region:   n.Region,
-		Healthy:  n.Healthy(),
-		Failures: n.failures.Load(),
-		Success:  n.success.Load(),
+		ID:            backend.NodeKey(),
+		Kind:          backend.Type,
+		Region:        backend.Country,
+		Anonymity:     backend.Anonymity,
+		Status:        backend.Status,
+		Latency:       backend.Latency,
+		SuccessRate:   backend.SuccessRate,
+		TotalRequests: backend.TotalRequests,
+		QualityScore:  backend.QualityScore(),
+		Healthy:       n.Healthy(),
+		Failures:      n.consecutiveFailures.Load(),
+		LastChecked:   backend.LastChecked,
 	}
 }
 
 // NodeStats is a snapshot for the admin API.
 type NodeStats struct {
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`
-	Region   string `json:"region"`
-	Healthy  bool   `json:"healthy"`
-	Failures uint64 `json:"failures"`
-	Success  uint64 `json:"success"`
+	ID            string    `json:"id"`
+	Kind          string    `json:"kind"`
+	Region        string    `json:"region"`
+	Anonymity     string    `json:"anonymity"`
+	Status        string    `json:"status"`
+	Latency       int       `json:"latency"`
+	SuccessRate   float64   `json:"success_rate"`
+	TotalRequests int64     `json:"total_requests"`
+	QualityScore  float64   `json:"quality_score"`
+	Healthy       bool      `json:"healthy"`
+	Failures      uint64    `json:"failures"`
+	LastChecked   time.Time `json:"last_checked"`
 }

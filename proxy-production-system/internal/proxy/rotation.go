@@ -28,6 +28,7 @@ const (
 	RotationRoundRobin RotationMode = "round_robin"
 	RotationRandom     RotationMode = "random"
 	RotationSticky     RotationMode = "sticky"
+	RotationQuality    RotationMode = "quality"
 )
 
 // ParseRotationMode reads env-friendly rotation labels.
@@ -39,6 +40,8 @@ func ParseRotationMode(raw string) (RotationMode, error) {
 		return RotationRandom, nil
 	case string(RotationSticky), "session":
 		return RotationSticky, nil
+	case string(RotationQuality), "best", "score":
+		return RotationQuality, nil
 	default:
 		return "", fmt.Errorf("unknown rotation mode %q", raw)
 	}
