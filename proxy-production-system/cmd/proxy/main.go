@@ -46,6 +46,7 @@ func main() {
 			SocksAddress: cfg.Gateway.SocksAddress,
 			HealthEvery:  cfg.Gateway.HealthEvery,
 			AdminToken:   cfg.Gateway.AdminToken,
+			EliteMode:    cfg.Gateway.EliteMode,
 			Auth: proxy.NewGatewayAuth(
 				cfg.Gateway.GatewayUser,
 				cfg.Gateway.GatewayPass,

@@ -61,6 +61,56 @@ func TestExtractSessionIDFromUsername(t *testing.T) {
 	}
 }
 
+func TestForwardHTTPProxyEliteModeStripsHeaders(t *testing.T) {
+	t.Helper()
+
+	var seenUserAgent string
+	var seenForwardedFor string
+	var seenVia string
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenUserAgent = r.Header.Get("User-Agent")
+		seenForwardedFor = r.Header.Get("X-Forwarded-For")
+		seenVia = r.Header.Get("Via")
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer target.Close()
+
+	pool, err := NewGatewayPool([]string{target.URL + "|isp|VN"}, RotationRoundRobin, 0)
+	if err != nil {
+		t.Fatalf("NewGatewayPool returned error: %v", err)
+	}
+
+	proxyHandler := &ForwardHTTPProxy{Pool: pool, Auth: GatewayAuth{}, EliteMode: true}
+	server := httptest.NewServer(proxyHandler)
+	defer server.Close()
+
+	client := &http.Client{
+		Transport: &http.Transport{Proxy: http.ProxyURL(mustParseURL(t, server.URL))},
+	}
+	req, err := http.NewRequest(http.MethodGet, target.URL+"/probe", nil)
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+	req.Header.Set("Via", "1.1 bad-proxy")
+	req.Header.Set("User-Agent", "Mozilla/5.0 EliteTest")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	resp.Body.Close()
+
+	if seenForwardedFor != "" {
+		t.Fatalf("X-Forwarded-For leaked to upstream: %q", seenForwardedFor)
+	}
+	if seenVia != "" {
+		t.Fatalf("Via leaked to upstream: %q", seenVia)
+	}
+	if seenUserAgent != "Mozilla/5.0 EliteTest" {
+		t.Fatalf("custom User-Agent should survive elite filter: got=%q", seenUserAgent)
+	}
+}
+
 func TestForwardHTTPProxyRequiresAuthWhenConfigured(t *testing.T) {
 	t.Helper()
 

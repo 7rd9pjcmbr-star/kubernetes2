@@ -65,6 +65,7 @@ type GatewayConfig struct {
 	ClientWhitelist []string
 	HealthEvery   time.Duration
 	AdminToken    string
+	EliteMode     bool
 }
 
 func LoadFromEnv() (Config, error) {
@@ -120,7 +121,17 @@ func loadGatewayConfig(poolEntries []string) GatewayConfig {
 		ClientWhitelist: splitCSV(os.Getenv("PROXY_CLIENT_WHITELIST")),
 		HealthEvery:     getDurationEnv("PROXY_HEALTH_INTERVAL", defaultHealthInterval),
 		AdminToken:      strings.TrimSpace(os.Getenv("PROXY_ADMIN_TOKEN")),
+		EliteMode:       parseEliteMode(os.Getenv("PROXY_ELITE_MODE")),
 	}
+}
+
+func parseEliteMode(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return true
+	}
+	value, err := strconv.ParseBool(raw)
+	return err == nil && value
 }
 
 func validate(cfg Config) error {

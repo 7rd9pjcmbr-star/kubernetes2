@@ -28,8 +28,9 @@ import (
 
 // ForwardHTTPProxy serves HTTP/HTTPS traffic through the rotating gateway pool.
 type ForwardHTTPProxy struct {
-	Pool *GatewayPool
-	Auth GatewayAuth
+	Pool      *GatewayPool
+	Auth      GatewayAuth
+	EliteMode bool
 }
 
 func (p *ForwardHTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +43,10 @@ func (p *ForwardHTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Proxy-Authenticate", `Basic realm="proxy-gateway"`)
 		http.Error(w, "proxy authentication required", http.StatusProxyAuthRequired)
 		return
+	}
+
+	if p.EliteMode {
+		SanitizeEliteRequest(r)
 	}
 
 	sessionID := ExtractSessionID(username)
@@ -123,8 +128,12 @@ func (p *ForwardHTTPProxy) handleHTTP(w http.ResponseWriter, r *http.Request, no
 
 	req := r.Clone(ctx)
 	req.RequestURI = ""
-	req.Header.Del("Proxy-Authorization")
-	req.Header.Del("Proxy-Connection")
+	if p.EliteMode {
+		SanitizeEliteRequest(req)
+	} else {
+		req.Header.Del("Proxy-Authorization")
+		req.Header.Del("Proxy-Connection")
+	}
 
 	if err := req.Write(upstreamConn); err != nil {
 		http.Error(w, "failed to forward request", http.StatusBadGateway)

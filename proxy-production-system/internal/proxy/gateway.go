@@ -35,6 +35,7 @@ type GatewayConfig struct {
 	Auth          GatewayAuth
 	HealthEvery   time.Duration
 	AdminToken    string
+	EliteMode     bool
 }
 
 // Gateway serves HTTP/SOCKS5 forward proxy plus a small admin API.
@@ -88,7 +89,11 @@ func (g *Gateway) AdminHandler() http.Handler {
 }
 
 func (g *Gateway) ForwardHTTPHandler() http.Handler {
-	return &ForwardHTTPProxy{Pool: g.pool, Auth: g.auth}
+	return &ForwardHTTPProxy{
+		Pool:      g.pool,
+		Auth:      g.auth,
+		EliteMode: g.config.EliteMode,
+	}
 }
 
 func (g *Gateway) Start(ctx context.Context) error {

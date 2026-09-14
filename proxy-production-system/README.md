@@ -75,6 +75,7 @@ curl -i http://localhost:8080
 | `PROXY_CLIENT_WHITELIST` | Không | _(trống)_ | Chỉ cho phép IP client (sandbox) |
 | `PROXY_HEALTH_INTERVAL` | Không | `30s` | Chu kỳ health check upstream |
 | `PROXY_ADMIN_TOKEN` | Không | _(trống)_ | Header `X-Admin-Token` cho stats API |
+| `PROXY_ELITE_MODE` | Không | `true` | Xóa header lộ proxy (`X-Forwarded-For`, `Via`, …) trước khi forward |
 
 **Loại node (`kind`)**: `residential`, `4g`, `isp`, `datacenter`.
 
