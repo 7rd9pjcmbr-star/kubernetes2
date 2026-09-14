@@ -7,9 +7,14 @@ services:
       - .env
     ports:
       - "8080:8080"
+      - "8888:8888"
+      - "1080:1080"
+      - "9090:9090"
     depends_on:
       - echo-a
       - echo-b
+      - upstream-a
+      - upstream-b
 
   echo-a:
     image: hashicorp/http-echo:latest
@@ -18,3 +23,11 @@ services:
   echo-b:
     image: hashicorp/http-echo:latest
     command: ["-listen=:8082", "-text=echo-b"]
+
+  upstream-a:
+    image: dperson/tinyproxy:latest
+    command: -p 3128
+
+  upstream-b:
+    image: dperson/tinyproxy:latest
+    command: -p 3128

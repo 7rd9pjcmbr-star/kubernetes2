@@ -3,6 +3,7 @@
 Scaffold dự án proxy production-ready ở mức nền tảng:
 
 - Reverse proxy round-robin nhiều upstream.
+- **Gateway proxy kiểu dân chơi VN**: HTTP + SOCKS5, xoay IP, sticky session, auth, whitelist IP.
 - Health check endpoint (`/healthz`) cho liveness/readiness.
 - Graceful shutdown để tránh rớt request khi rollout.
 - Runtime config bằng environment variables.
@@ -17,7 +18,11 @@ proxy-production-system/
 ├── internal/config/config.go
 ├── internal/proxy/
 │   ├── pool.go
-│   ├── pool_test.go
+│   ├── gateway.go
+│   ├── forward_http.go
+│   ├── socks5_server.go
+│   ├── auth.go
+│   ├── health.go
 │   └── reverse_proxy.go
 ├── deployments/
 │   ├── docker/Dockerfile
@@ -54,6 +59,47 @@ curl -i http://localhost:8080
 | `PROXY_WRITE_TIMEOUT` | Không | `15s` | Write timeout cho HTTP server |
 | `PROXY_IDLE_TIMEOUT` | Không | `60s` | Idle timeout cho keep-alive |
 | `PROXY_SHUTDOWN_TIMEOUT` | Không | `20s` | Timeout cho graceful shutdown |
+
+### Gateway proxy (HTTP/SOCKS5 — kiểu seller/automation VN)
+
+| Biến | Bắt buộc | Mặc định | Ý nghĩa |
+|---|---|---|---|
+| `PROXY_GATEWAY_ENABLED` | Không | `false` (auto `true` nếu có `PROXY_POOL`) | Bật gateway forward proxy |
+| `PROXY_POOL` | Có (khi bật gateway) | - | CSV entry dạng `url\|kind\|region` |
+| `PROXY_GATEWAY_HTTP_ADDRESS` | Không | `:8888` | HTTP/HTTPS proxy listen |
+| `PROXY_GATEWAY_SOCKS_ADDRESS` | Không | `:1080` | SOCKS5 proxy listen |
+| `PROXY_GATEWAY_ADMIN_ADDRESS` | Không | _(trống)_ | Admin API (`/healthz`, `/api/v1/pool/stats`) |
+| `PROXY_GATEWAY_USER` / `PROXY_GATEWAY_PASS` | Khuyến nghị | _(trống)_ | Auth kiểu `user:pass` cho client |
+| `PROXY_ROTATION` | Không | `round_robin` | `round_robin`, `random`, `sticky` |
+| `PROXY_STICKY_TTL` | Không | `10m` | Thời gian giữ IP khi dùng sticky |
+| `PROXY_CLIENT_WHITELIST` | Không | _(trống)_ | Chỉ cho phép IP client (sandbox) |
+| `PROXY_HEALTH_INTERVAL` | Không | `30s` | Chu kỳ health check upstream |
+| `PROXY_ADMIN_TOKEN` | Không | _(trống)_ | Header `X-Admin-Token` cho stats API |
+
+**Loại node (`kind`)**: `residential`, `4g`, `isp`, `datacenter`.
+
+**Sticky session theo username** (pattern phổ biến VN):
+
+```text
+player-session-shop123:change-me
+```
+
+Client dùng username `player-session-shop123` sẽ giữ cùng exit IP trong `PROXY_STICKY_TTL`.
+
+**Test nhanh gateway**:
+
+```bash
+# HTTP proxy
+curl -x http://player:change-me@localhost:8888 https://api.ipify.org
+
+# SOCKS5 (cần curl hỗ trợ socks5)
+curl --socks5 player:change-me@localhost:1080 https://api.ipify.org
+
+# Stats pool
+curl -H "X-Admin-Token: your-token" http://localhost:9090/api/v1/pool/stats
+```
+
+> Gateway là **lớp quản lý pool** — bạn cắm upstream thật (4G dongle, residential provider, SOCKS5 supplier) vào `PROXY_POOL`. Hệ thống lo auth, xoay IP, sticky, health check.
 
 ## 4) Chạy test
 

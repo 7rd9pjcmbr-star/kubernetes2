@@ -22,14 +22,21 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"proxy-production-system/internal/proxy"
 )
 
 const (
-	defaultListenAddress  = ":8080"
-	defaultReadTimeout    = 15 * time.Second
-	defaultWriteTimeout   = 15 * time.Second
-	defaultIdleTimeout    = 60 * time.Second
-	defaultShutdownPeriod = 20 * time.Second
+	defaultListenAddress     = ":8080"
+	defaultGatewayHTTP       = ":8888"
+	defaultGatewaySocks      = ":1080"
+	defaultReadTimeout       = 15 * time.Second
+	defaultWriteTimeout      = 15 * time.Second
+	defaultIdleTimeout       = 60 * time.Second
+	defaultShutdownPeriod    = 20 * time.Second
+	defaultStickyTTL         = 10 * time.Minute
+	defaultHealthInterval    = 30 * time.Second
+	defaultRotation          = proxy.RotationRoundRobin
 )
 
 // Config contains runtime options for the proxy server.
@@ -41,6 +48,23 @@ type Config struct {
 	WriteTimeout   time.Duration
 	IdleTimeout    time.Duration
 	ShutdownPeriod time.Duration
+	Gateway        GatewayConfig
+}
+
+// GatewayConfig configures the VN-style forward proxy gateway.
+type GatewayConfig struct {
+	Enabled       bool
+	PoolEntries   []string
+	Rotation      proxy.RotationMode
+	StickyTTL     time.Duration
+	HTTPAddress   string
+	SocksAddress  string
+	AdminAddress  string
+	GatewayUser   string
+	GatewayPass   string
+	ClientWhitelist []string
+	HealthEvery   time.Duration
+	AdminToken    string
 }
 
 func LoadFromEnv() (Config, error) {
@@ -53,9 +77,16 @@ func LoadFromEnv() (Config, error) {
 		ShutdownPeriod: getDurationEnv("PROXY_SHUTDOWN_TIMEOUT", defaultShutdownPeriod),
 	}
 
-	upstreams := splitTrim(os.Getenv("PROXY_UPSTREAMS"))
-	if len(upstreams) == 0 {
-		return Config{}, fmt.Errorf("missing PROXY_UPSTREAMS, expected comma-separated upstream URLs")
+	poolEntries := splitCSV(os.Getenv("PROXY_POOL"))
+	upstreams := splitCSV(os.Getenv("PROXY_UPSTREAMS"))
+	cfg.Gateway = loadGatewayConfig(poolEntries)
+
+	if cfg.Gateway.Enabled {
+		if len(upstreams) == 0 {
+			upstreams = []string{"http://127.0.0.1:65535"}
+		}
+	} else if len(upstreams) == 0 {
+		return Config{}, fmt.Errorf("missing PROXY_UPSTREAMS or PROXY_POOL")
 	}
 	cfg.Upstreams = upstreams
 
@@ -65,11 +96,41 @@ func LoadFromEnv() (Config, error) {
 	return cfg, nil
 }
 
+func loadGatewayConfig(poolEntries []string) GatewayConfig {
+	enabled := parseBool(os.Getenv("PROXY_GATEWAY_ENABLED"))
+	if !enabled && len(poolEntries) > 0 {
+		enabled = true
+	}
+
+	rotation, err := proxy.ParseRotationMode(getEnv("PROXY_ROTATION", string(defaultRotation)))
+	if err != nil {
+		rotation = defaultRotation
+	}
+
+	return GatewayConfig{
+		Enabled:         enabled,
+		PoolEntries:     poolEntries,
+		Rotation:        rotation,
+		StickyTTL:       getDurationEnv("PROXY_STICKY_TTL", defaultStickyTTL),
+		HTTPAddress:     getEnv("PROXY_GATEWAY_HTTP_ADDRESS", defaultGatewayHTTP),
+		SocksAddress:    getEnv("PROXY_GATEWAY_SOCKS_ADDRESS", defaultGatewaySocks),
+		AdminAddress:    strings.TrimSpace(os.Getenv("PROXY_GATEWAY_ADMIN_ADDRESS")),
+		GatewayUser:     strings.TrimSpace(os.Getenv("PROXY_GATEWAY_USER")),
+		GatewayPass:     os.Getenv("PROXY_GATEWAY_PASS"),
+		ClientWhitelist: splitCSV(os.Getenv("PROXY_CLIENT_WHITELIST")),
+		HealthEvery:     getDurationEnv("PROXY_HEALTH_INTERVAL", defaultHealthInterval),
+		AdminToken:      strings.TrimSpace(os.Getenv("PROXY_ADMIN_TOKEN")),
+	}
+}
+
 func validate(cfg Config) error {
 	for _, upstream := range cfg.Upstreams {
 		if !strings.HasPrefix(upstream, "http://") && !strings.HasPrefix(upstream, "https://") {
 			return fmt.Errorf("invalid upstream %q: URL must start with http:// or https://", upstream)
 		}
+	}
+	if cfg.Gateway.Enabled && len(cfg.Gateway.PoolEntries) == 0 {
+		return fmt.Errorf("PROXY_GATEWAY_ENABLED requires PROXY_POOL entries")
 	}
 	if cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownPeriod <= 0 {
 		return fmt.Errorf("timeouts must be greater than zero")
@@ -100,7 +161,7 @@ func getEnv(key, fallback string) string {
 	return value
 }
 
-func splitTrim(value string) []string {
+func splitCSV(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
@@ -113,6 +174,11 @@ func splitTrim(value string) []string {
 		}
 	}
 	return out
+}
+
+func parseBool(raw string) bool {
+	value, err := strconv.ParseBool(strings.TrimSpace(raw))
+	return err == nil && value
 }
 
 // WorkerCountFromEnv reads optional proxy worker tuning.
