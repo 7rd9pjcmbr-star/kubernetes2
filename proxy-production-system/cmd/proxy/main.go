@@ -61,12 +61,14 @@ func main() {
 
 	metrics := proxy.NewMetrics()
 	handler, err := proxy.NewRoundRobinHandler(cfg.Upstreams, proxy.MiddlewareOptions{
-		AuthToken:      cfg.AuthToken,
-		RateLimitRPS:   cfg.RateLimitRPS,
-		RateLimitBurst: cfg.RateLimitBurst,
-		TrustForwarded: cfg.TrustForwarded,
-		RequestTimeout: cfg.RequestTimeout,
-		Metrics:        metrics,
+		AuthToken:          cfg.AuthToken,
+		RateLimitRPS:       cfg.RateLimitRPS,
+		RateLimitBurst:     cfg.RateLimitBurst,
+		TrustForwarded:     cfg.TrustForwarded,
+		RequestTimeout:     cfg.RequestTimeout,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		UpstreamBasicAuth:  cfg.UpstreamBasicAuth,
+		Metrics:            metrics,
 	})
 	if err != nil {
 		slog.Error("failed to build proxy handler", "error", err)
@@ -92,6 +94,8 @@ func main() {
 		"rate_limit_rps", cfg.RateLimitRPS,
 		"rate_limit_burst", cfg.RateLimitBurst,
 		"trust_forwarded", cfg.TrustForwarded,
+		"insecure_skip_verify", cfg.InsecureSkipVerify,
+		"upstream_basic_auth_enabled", cfg.UpstreamBasicAuth != "",
 		"request_timeout", cfg.RequestTimeout.String(),
 		"log_format", cfg.LogFormat,
 		"service_name", cfg.ServiceName,

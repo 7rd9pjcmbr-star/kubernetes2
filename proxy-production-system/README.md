@@ -77,6 +77,15 @@ Chỉ đưa vào staging/production khi thấy:
 
 Chi tiết: `docs/preflight-test.md`
 
+### Cấu hình proxy nội bộ (upstream IP nội bộ)
+
+```bash
+cp .env.internal.example .env
+./scripts/run-internal-proxy.sh
+```
+
+Chi tiết: `docs/internal-upstream.md`
+
 Nghiệm thu nhanh / tự thử tay:
 
 ```bash
@@ -118,6 +127,8 @@ curl -i http://localhost:8080
 | `PROXY_RATE_LIMIT_RPS` | Không | `0` | Số request/giây theo mỗi IP (`0` = tắt) |
 | `PROXY_RATE_LIMIT_BURST` | Không | `0` | Burst cho token bucket (`>0` khi bật RPS) |
 | `PROXY_TRUST_FORWARDED` | Không | `false` | Tin `X-Forwarded-For`/`X-Real-Ip` khi đứng sau LB/reverse proxy |
+| `PROXY_INSECURE_SKIP_VERIFY` | Không | `false` | Bỏ verify TLS upstream (chỉ mạng nội bộ tin cậy) |
+| `PROXY_UPSTREAM_BASIC_AUTH` | Không | rỗng | `user:pass` gửi Basic Auth tới upstream (để ở `.env` local) |
 | `PROXY_LOG_FORMAT` | Không | `json` | Định dạng log: `json` hoặc `text` |
 | `PROXY_SERVICE_NAME` | Không | `proxy-production-system` | Service name cho telemetry resource |
 | `PROXY_TRACE_OTLP_ENDPOINT` | Không | rỗng | OTLP gRPC endpoint (ví dụ `otel-collector:4317`), rỗng = tắt exporter |

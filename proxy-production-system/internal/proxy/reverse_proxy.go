@@ -17,13 +17,18 @@ limitations under the License.
 package proxy
 
 import (
+	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"proxy-production-system/internal/buildinfo"
+	"strings"
+	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -36,6 +41,9 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 	}
 
 	pool := newUpstreamPool(upstreams)
+	transport := newUpstreamTransport(options.InsecureSkipVerify)
+	basicAuthHeader := encodeBasicAuth(options.UpstreamBasicAuth)
+
 	reverseProxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			target, err := url.Parse(pool.next())
@@ -50,9 +58,17 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 			req.URL.Scheme = target.Scheme
 			req.URL.Host = target.Host
 			req.Host = target.Host
+			if target.Path != "" && target.Path != "/" {
+				// Preserve upstream base path when configured (e.g. /config.html or /Main/).
+				joined := singleJoiningSlash(target.Path, req.URL.Path)
+				req.URL.Path = joined
+			}
+			if basicAuthHeader != "" && req.Header.Get("Authorization") == "" {
+				req.Header.Set("Authorization", basicAuthHeader)
+			}
 			otel.GetTextMapPropagator().Inject(req.Context(), propagation.HeaderCarrier(req.Header))
 		},
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Transport: otelhttp.NewTransport(transport),
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
 			if options.Metrics != nil {
 				options.Metrics.IncUpstreamError()
@@ -95,4 +111,52 @@ func NewRoundRobinHandler(upstreams []string, options MiddlewareOptions) (http.H
 	handler = withSecurityHeaders(handler)
 	handler = withRequestLogging(handler, options.TrustForwarded, options.Metrics)
 	return handler, nil
+}
+
+func newUpstreamTransport(insecureSkipVerify bool) http.RoundTripper {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		base = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+	}
+	clone := base.Clone()
+	if insecureSkipVerify {
+		if clone.TLSClientConfig == nil {
+			clone.TLSClientConfig = &tls.Config{}
+		}
+		clone.TLSClientConfig = clone.TLSClientConfig.Clone()
+		clone.TLSClientConfig.InsecureSkipVerify = true
+	}
+	return clone
+}
+
+func encodeBasicAuth(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(trimmed))
+}
+
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	default:
+		return a + b
+	}
 }

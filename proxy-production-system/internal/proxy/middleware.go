@@ -29,12 +29,14 @@ import (
 )
 
 type MiddlewareOptions struct {
-	AuthToken      string
-	RateLimitRPS   int
-	RateLimitBurst int
-	TrustForwarded bool
-	RequestTimeout time.Duration
-	Metrics        *Metrics
+	AuthToken          string
+	RateLimitRPS       int
+	RateLimitBurst     int
+	TrustForwarded     bool
+	RequestTimeout     time.Duration
+	InsecureSkipVerify bool
+	UpstreamBasicAuth  string
+	Metrics            *Metrics
 }
 
 var requestSequence uint64

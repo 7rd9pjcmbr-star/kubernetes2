@@ -37,41 +37,45 @@ const (
 
 // Config contains runtime options for the proxy server.
 type Config struct {
-	ListenAddress  string
-	Upstreams      []string
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	IdleTimeout    time.Duration
-	ShutdownPeriod time.Duration
-	RequestTimeout time.Duration
-	AuthToken      string
-	RateLimitRPS   int
-	RateLimitBurst int
-	TrustForwarded bool
-	LogFormat      string
-	ServiceName    string
-	TraceEndpoint  string
-	TraceInsecure  bool
-	TraceSample    float64
+	ListenAddress      string
+	Upstreams          []string
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	IdleTimeout        time.Duration
+	ShutdownPeriod     time.Duration
+	RequestTimeout     time.Duration
+	AuthToken          string
+	RateLimitRPS       int
+	RateLimitBurst     int
+	TrustForwarded     bool
+	InsecureSkipVerify bool
+	UpstreamBasicAuth  string
+	LogFormat          string
+	ServiceName        string
+	TraceEndpoint      string
+	TraceInsecure      bool
+	TraceSample        float64
 }
 
 func LoadFromEnv() (Config, error) {
 	cfg := Config{
-		ListenAddress:  getEnv("PROXY_LISTEN_ADDRESS", defaultListenAddress),
-		ReadTimeout:    getDurationEnv("PROXY_READ_TIMEOUT", defaultReadTimeout),
-		WriteTimeout:   getDurationEnv("PROXY_WRITE_TIMEOUT", defaultWriteTimeout),
-		IdleTimeout:    getDurationEnv("PROXY_IDLE_TIMEOUT", defaultIdleTimeout),
-		ShutdownPeriod: getDurationEnv("PROXY_SHUTDOWN_TIMEOUT", defaultShutdownPeriod),
-		RequestTimeout: getDurationEnv("PROXY_REQUEST_TIMEOUT", defaultRequestTimeout),
-		AuthToken:      strings.TrimSpace(os.Getenv("PROXY_AUTH_TOKEN")),
-		RateLimitRPS:   getIntEnv("PROXY_RATE_LIMIT_RPS", 0),
-		RateLimitBurst: getIntEnv("PROXY_RATE_LIMIT_BURST", 0),
-		TrustForwarded: getBoolEnv("PROXY_TRUST_FORWARDED", false),
-		LogFormat:      strings.ToLower(getEnv("PROXY_LOG_FORMAT", "json")),
-		ServiceName:    getEnv("PROXY_SERVICE_NAME", defaultServiceName),
-		TraceEndpoint:  strings.TrimSpace(os.Getenv("PROXY_TRACE_OTLP_ENDPOINT")),
-		TraceInsecure:  getBoolEnv("PROXY_TRACE_OTLP_INSECURE", true),
-		TraceSample:    getFloatEnv("PROXY_TRACE_SAMPLE_RATIO", 1.0),
+		ListenAddress:      getEnv("PROXY_LISTEN_ADDRESS", defaultListenAddress),
+		ReadTimeout:        getDurationEnv("PROXY_READ_TIMEOUT", defaultReadTimeout),
+		WriteTimeout:       getDurationEnv("PROXY_WRITE_TIMEOUT", defaultWriteTimeout),
+		IdleTimeout:        getDurationEnv("PROXY_IDLE_TIMEOUT", defaultIdleTimeout),
+		ShutdownPeriod:     getDurationEnv("PROXY_SHUTDOWN_TIMEOUT", defaultShutdownPeriod),
+		RequestTimeout:     getDurationEnv("PROXY_REQUEST_TIMEOUT", defaultRequestTimeout),
+		AuthToken:          strings.TrimSpace(os.Getenv("PROXY_AUTH_TOKEN")),
+		RateLimitRPS:       getIntEnv("PROXY_RATE_LIMIT_RPS", 0),
+		RateLimitBurst:     getIntEnv("PROXY_RATE_LIMIT_BURST", 0),
+		TrustForwarded:     getBoolEnv("PROXY_TRUST_FORWARDED", false),
+		InsecureSkipVerify: getBoolEnv("PROXY_INSECURE_SKIP_VERIFY", false),
+		UpstreamBasicAuth:  strings.TrimSpace(os.Getenv("PROXY_UPSTREAM_BASIC_AUTH")),
+		LogFormat:          strings.ToLower(getEnv("PROXY_LOG_FORMAT", "json")),
+		ServiceName:        getEnv("PROXY_SERVICE_NAME", defaultServiceName),
+		TraceEndpoint:      strings.TrimSpace(os.Getenv("PROXY_TRACE_OTLP_ENDPOINT")),
+		TraceInsecure:      getBoolEnv("PROXY_TRACE_OTLP_INSECURE", true),
+		TraceSample:        getFloatEnv("PROXY_TRACE_SAMPLE_RATIO", 1.0),
 	}
 
 	upstreams := splitTrim(os.Getenv("PROXY_UPSTREAMS"))
