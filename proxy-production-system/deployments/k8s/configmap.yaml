@@ -18,3 +18,8 @@ data:
   PROXY_ROTATION: "sticky"
   PROXY_STICKY_TTL: "10m"
   PROXY_HEALTH_INTERVAL: "30s"
+  MONGO_URI: "mongodb://mongo.default.svc.cluster.local:27017"
+  MONGO_DATABASE: "proxy_gateway"
+  MONGO_COLLECTION: "backends"
+  MONGO_SYNC_INTERVAL: "10s"
+  MONGO_METRICS_FLUSH_INTERVAL: "30s"

@@ -111,6 +111,83 @@ curl -H "X-Admin-Token: your-token" http://localhost:9090/api/v1/pool/stats
 
 > Gateway là **lớp quản lý pool** — bạn cắm upstream thật (4G dongle, residential provider, SOCKS5 supplier) vào `PROXY_POOL`. Hệ thống lo auth, xoay IP, sticky, health check.
 
+## 3.1) Kiến trúc tối ưu (MongoDB + CRUD + hot reload)
+
+```text
+Client (AdsPower/curl)
+    -> HTTP :8888 / SOCKS5 :1080
+        -> PoolManager (quality/sticky rotation)
+            -> Upstream exit IP (4G/residential)
+Admin/Dashboard
+    -> REST :9090 /api/v1/backends
+        -> MongoDB (ProxyBackend collection)
+            -> sync every 10s + hot reload on CRUD
+```
+
+| Thành phần | Vai trò |
+|---|---|
+| `internal/model/proxy_backend.go` | Schema MongoDB |
+| `internal/store/mongo.go` | Persistence + metrics flush |
+| `internal/proxy/pool_manager.go` | Hot reload pool không downtime |
+| `internal/proxy/sync.go` | Bootstrap từ `PROXY_POOL`, sync định kỳ |
+| Admin API | CRUD backend + `/api/v1/pool/reload` |
+
+**Env MongoDB**:
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `MONGO_URI` | _(trống = in-memory)_ | URI MongoDB |
+| `MONGO_DATABASE` | `proxy_gateway` | Database |
+| `MONGO_COLLECTION` | `backends` | Collection |
+| `MONGO_SYNC_INTERVAL` | `10s` | Reload pool từ Mongo |
+| `MONGO_METRICS_FLUSH_INTERVAL` | `30s` | Ghi latency/success_rate về Mongo |
+
+**Admin CRUD** (header `X-Admin-Token` nếu có `PROXY_ADMIN_TOKEN`):
+
+```bash
+# Thêm backend mới (hot reload ngay)
+curl -X POST http://localhost:9090/api/v1/backends \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: change-me-admin" \
+  -d '{"ip":"203.0.113.10","port":3128,"type":"4g","country":"VN","anonymity":"elite","status":"active","latency":35,"success_rate":99}'
+
+# List / update / delete
+curl http://localhost:9090/api/v1/backends
+curl -X PUT http://localhost:9090/api/v1/backends/{id} ...
+curl -X DELETE http://localhost:9090/api/v1/backends/{id}
+
+# Force reload pool từ Mongo
+curl -X POST http://localhost:9090/api/v1/pool/reload
+```
+
+Lần chạy đầu: nếu Mongo trống, gateway **seed** từ `PROXY_POOL` rồi dùng Mongo làm nguồn sự thật.
+
+## 3.2) @TondaithanhBot (Telegram + MongoDB)
+
+Bot Telegram doc/ghi trực tiếp collection `backends` trong MongoDB — gateway tự sync pool sau ~10s.
+
+```bash
+# .env
+TELEGRAM_BOT_TOKEN=<token cua @TondaithanhBot>
+TELEGRAM_ADMIN_CHAT_IDS=123456789   # chat ID admin, CSV neu nhieu nguoi
+MONGO_URI=mongodb://mongo:27017
+```
+
+`docker compose up` chạy service `tondaithanh-bot` song song với gateway.
+
+**Lenh Telegram**:
+
+| Lenh | Mo ta |
+|---|---|
+| `/subscribe` | Luu chat vao Mongo `telegram_chats`, nhan canh bao dead |
+| `/list` | Xem pool tu MongoDB |
+| `/stats` | Tong active/dead/testing |
+| `/add 203.0.113.1 3128 4g VN` | Them backend vao Mongo |
+| `/del <id>` | Xoa backend |
+| `/status <id> dead` | Doi trang thai thu cong |
+
+Bot tu dong broadcast khi backend chuyen sang `dead` (poll Mongo moi 30s).
+
 ## 4) Chạy test
 
 ```bash

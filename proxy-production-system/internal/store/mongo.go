@@ -35,9 +35,10 @@ type MongoRepository struct {
 }
 
 type MongoConfig struct {
-	URI        string
-	Database   string
-	Collection string
+	URI                string
+	Database           string
+	Collection         string
+	TelegramCollection string
 }
 
 func NewMongoRepository(ctx context.Context, cfg MongoConfig) (*MongoRepository, error) {
