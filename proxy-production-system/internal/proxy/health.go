@@ -25,7 +25,7 @@ import (
 
 // HealthChecker periodically probes upstream nodes so dead exits drop out fast.
 type HealthChecker struct {
-	Pool     *GatewayPool
+	Pool     PoolSelector
 	Interval time.Duration
 }
 

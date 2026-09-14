@@ -28,7 +28,7 @@ import (
 // Socks5Server exposes the gateway pool over SOCKS5 for browser/tool clients.
 type Socks5Server struct {
 	Addr string
-	Pool *GatewayPool
+	Pool PoolSelector
 	Auth GatewayAuth
 }
 

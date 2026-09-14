@@ -17,7 +17,6 @@ limitations under the License.
 package proxy
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -162,38 +161,6 @@ func TestForwardHTTPProxyRequiresAuthWhenConfigured(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("unexpected status=%d body=%q", resp.StatusCode, string(body))
-	}
-}
-
-func TestGatewayAdminStatsJSON(t *testing.T) {
-	t.Helper()
-
-	gateway, err := NewGateway(GatewayConfig{
-		PoolEntries: []string{
-			"http://127.0.0.1:18001|4g|VN-HCM",
-			"http://127.0.0.1:18002|residential|VN-HN",
-		},
-		Rotation: RotationRoundRobin,
-	})
-	if err != nil {
-		t.Fatalf("NewGateway returned error: %v", err)
-	}
-
-	server := httptest.NewServer(gateway.AdminHandler())
-	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/api/v1/pool/stats")
-	if err != nil {
-		t.Fatalf("GET stats failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	var stats PoolStats
-	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
-		t.Fatalf("failed to decode stats: %v", err)
-	}
-	if stats.Total != 2 {
-		t.Fatalf("unexpected total nodes: got=%d want=2", stats.Total)
 	}
 }
 

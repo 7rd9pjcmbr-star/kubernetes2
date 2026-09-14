@@ -37,6 +37,10 @@ const (
 	defaultStickyTTL         = 10 * time.Minute
 	defaultHealthInterval    = 30 * time.Second
 	defaultRotation          = proxy.RotationRoundRobin
+	defaultSyncInterval      = 10 * time.Second
+	defaultMetricsInterval   = 30 * time.Second
+	defaultMongoDatabase     = "proxy_gateway"
+	defaultMongoCollection   = "backends"
 )
 
 // Config contains runtime options for the proxy server.
@@ -66,6 +70,11 @@ type GatewayConfig struct {
 	HealthEvery   time.Duration
 	AdminToken    string
 	EliteMode     bool
+	MongoURI        string
+	MongoDatabase   string
+	MongoCollection string
+	SyncEvery       time.Duration
+	MetricsEvery    time.Duration
 }
 
 func LoadFromEnv() (Config, error) {
@@ -122,6 +131,11 @@ func loadGatewayConfig(poolEntries []string) GatewayConfig {
 		HealthEvery:     getDurationEnv("PROXY_HEALTH_INTERVAL", defaultHealthInterval),
 		AdminToken:      strings.TrimSpace(os.Getenv("PROXY_ADMIN_TOKEN")),
 		EliteMode:       parseEliteMode(os.Getenv("PROXY_ELITE_MODE")),
+		MongoURI:        strings.TrimSpace(os.Getenv("MONGO_URI")),
+		MongoDatabase:   getEnv("MONGO_DATABASE", defaultMongoDatabase),
+		MongoCollection: getEnv("MONGO_COLLECTION", defaultMongoCollection),
+		SyncEvery:       getDurationEnv("MONGO_SYNC_INTERVAL", defaultSyncInterval),
+		MetricsEvery:    getDurationEnv("MONGO_METRICS_FLUSH_INTERVAL", defaultMetricsInterval),
 	}
 }
 
@@ -140,8 +154,8 @@ func validate(cfg Config) error {
 			return fmt.Errorf("invalid upstream %q: URL must start with http:// or https://", upstream)
 		}
 	}
-	if cfg.Gateway.Enabled && len(cfg.Gateway.PoolEntries) == 0 {
-		return fmt.Errorf("PROXY_GATEWAY_ENABLED requires PROXY_POOL entries")
+	if cfg.Gateway.Enabled && len(cfg.Gateway.PoolEntries) == 0 && cfg.Gateway.MongoURI == "" {
+		return fmt.Errorf("PROXY_GATEWAY_ENABLED requires PROXY_POOL or MONGO_URI")
 	}
 	if cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownPeriod <= 0 {
 		return fmt.Errorf("timeouts must be greater than zero")

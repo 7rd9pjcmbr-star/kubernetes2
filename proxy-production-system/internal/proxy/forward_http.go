@@ -28,7 +28,7 @@ import (
 
 // ForwardHTTPProxy serves HTTP/HTTPS traffic through the rotating gateway pool.
 type ForwardHTTPProxy struct {
-	Pool      *GatewayPool
+	Pool      PoolSelector
 	Auth      GatewayAuth
 	EliteMode bool
 }

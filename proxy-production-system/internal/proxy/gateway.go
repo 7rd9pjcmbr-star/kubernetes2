@@ -23,53 +23,64 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"proxy-production-system/internal/store"
 )
 
 // GatewayConfig wires the VN-style forward proxy gateway.
 type GatewayConfig struct {
-	PoolEntries   []string
-	Rotation      RotationMode
-	StickyTTL     time.Duration
-	HTTPAddress   string
-	SocksAddress  string
-	Auth          GatewayAuth
-	HealthEvery   time.Duration
-	AdminToken    string
-	EliteMode     bool
+	PoolEntries      []string
+	Rotation         RotationMode
+	StickyTTL        time.Duration
+	HTTPAddress      string
+	SocksAddress     string
+	Auth             GatewayAuth
+	HealthEvery      time.Duration
+	AdminToken       string
+	EliteMode        bool
+	SyncEvery        time.Duration
+	MetricsEvery     time.Duration
 }
 
-// Gateway serves HTTP/SOCKS5 forward proxy plus a small admin API.
+// Gateway serves HTTP/SOCKS5 forward proxy plus admin CRUD and pool sync.
 type Gateway struct {
-	pool   *GatewayPool
-	auth   GatewayAuth
-	config GatewayConfig
+	manager *PoolManager
+	sync    *BackendSyncService
+	auth    GatewayAuth
+	config  GatewayConfig
 }
 
-func NewGateway(cfg GatewayConfig) (*Gateway, error) {
-	pool, err := NewGatewayPool(cfg.PoolEntries, cfg.Rotation, cfg.StickyTTL)
-	if err != nil {
-		return nil, err
+func NewGateway(cfg GatewayConfig, repo store.BackendRepository) (*Gateway, error) {
+	manager := NewPoolManager(cfg.Rotation, cfg.StickyTTL)
+	syncService := NewBackendSyncService(repo, manager, cfg.SyncEvery, cfg.MetricsEvery)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := syncService.InitialLoad(ctx, cfg.PoolEntries); err != nil {
+		return nil, fmt.Errorf("initial backend load: %w", err)
 	}
+
 	return &Gateway{
-		pool:   pool,
-		auth:   cfg.Auth,
-		config: cfg,
+		manager: manager,
+		sync:    syncService,
+		auth:    cfg.Auth,
+		config:  cfg,
 	}, nil
 }
 
-func (g *Gateway) Pool() *GatewayPool {
-	return g.pool
+func (g *Gateway) Manager() *PoolManager {
+	return g.manager
 }
 
 func (g *Gateway) AdminHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		stats := g.pool.Stats()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		stats := g.manager.Stats()
 		status := http.StatusOK
-		if stats.Healthy == 0 {
+		if stats.Total == 0 || stats.Healthy == 0 {
 			status = http.StatusServiceUnavailable
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status":  statusText(status),
@@ -77,27 +88,29 @@ func (g *Gateway) AdminHandler() http.Handler {
 			"total":   stats.Total,
 		})
 	})
-	mux.HandleFunc("/api/v1/pool/stats", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/pool/stats", func(w http.ResponseWriter, r *http.Request) {
 		if !g.authorizeAdmin(r) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(g.pool.Stats())
+		writeJSON(w, http.StatusOK, g.manager.Stats())
 	})
+	g.registerAdminRoutes(mux)
 	return mux
 }
 
 func (g *Gateway) ForwardHTTPHandler() http.Handler {
 	return &ForwardHTTPProxy{
-		Pool:      g.pool,
+		Pool:      g.manager,
 		Auth:      g.auth,
 		EliteMode: g.config.EliteMode,
 	}
 }
 
 func (g *Gateway) Start(ctx context.Context) error {
-	checker := &HealthChecker{Pool: g.pool, Interval: g.config.HealthEvery}
+	go g.sync.Run(ctx)
+
+	checker := &HealthChecker{Pool: g.manager, Interval: g.config.HealthEvery}
 	go checker.Run(ctx)
 
 	errCh := make(chan error, 2)
@@ -120,7 +133,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	if g.config.SocksAddress != "" {
 		socks := &Socks5Server{
 			Addr: g.config.SocksAddress,
-			Pool: g.pool,
+			Pool: g.manager,
 			Auth: g.auth,
 		}
 		go func() {

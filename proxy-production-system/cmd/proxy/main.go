@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"proxy-production-system/internal/config"
 	"proxy-production-system/internal/proxy"
+	"proxy-production-system/internal/store"
 	"syscall"
 	"time"
 )
@@ -38,6 +39,15 @@ func main() {
 	defer cancel()
 
 	if cfg.Gateway.Enabled {
+		repo, err := store.OpenRepository(ctx, store.OpenConfig{
+			MongoURI:        cfg.Gateway.MongoURI,
+			MongoDatabase:   cfg.Gateway.MongoDatabase,
+			MongoCollection: cfg.Gateway.MongoCollection,
+		})
+		if err != nil {
+			log.Fatalf("failed to open backend repository: %v", err)
+		}
+
 		gatewayCfg := proxy.GatewayConfig{
 			PoolEntries:  cfg.Gateway.PoolEntries,
 			Rotation:     cfg.Gateway.Rotation,
@@ -47,13 +57,15 @@ func main() {
 			HealthEvery:  cfg.Gateway.HealthEvery,
 			AdminToken:   cfg.Gateway.AdminToken,
 			EliteMode:    cfg.Gateway.EliteMode,
+			SyncEvery:    cfg.Gateway.SyncEvery,
+			MetricsEvery: cfg.Gateway.MetricsEvery,
 			Auth: proxy.NewGatewayAuth(
 				cfg.Gateway.GatewayUser,
 				cfg.Gateway.GatewayPass,
 				cfg.Gateway.ClientWhitelist,
 			),
 		}
-		gateway, err := proxy.NewGateway(gatewayCfg)
+		gateway, err := proxy.NewGateway(gatewayCfg, repo)
 		if err != nil {
 			log.Fatalf("failed to build gateway: %v", err)
 		}
@@ -83,8 +95,9 @@ func main() {
 			}()
 		}
 
-		log.Printf("gateway enabled rotation=%s pool_size=%d http=%s socks=%s",
-			cfg.Gateway.Rotation, len(cfg.Gateway.PoolEntries), cfg.Gateway.HTTPAddress, cfg.Gateway.SocksAddress)
+		stats := gateway.Manager().Stats()
+		log.Printf("gateway enabled rotation=%s pool_total=%d pool_healthy=%d http=%s socks=%s mongo=%t",
+			cfg.Gateway.Rotation, stats.Total, stats.Healthy, cfg.Gateway.HTTPAddress, cfg.Gateway.SocksAddress, cfg.Gateway.MongoURI != "")
 	}
 
 	handler, err := proxy.NewRoundRobinHandler(cfg.Upstreams, cfg.StaticRoot)
