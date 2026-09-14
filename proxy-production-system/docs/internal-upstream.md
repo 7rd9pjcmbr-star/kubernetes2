@@ -25,21 +25,25 @@ PROXY_UPSTREAM_BASIC_AUTH=username:password
 
 **Không commit mật khẩu vào git.**
 
-## 3) Chạy proxy nội bộ
+## 3) Đấu nối lại (reconnect)
 
 ```bash
-./scripts/run-internal-proxy.sh
+cd proxy-production-system
+./scripts/reconnect-internal.sh
 ```
 
-Kiểm tra:
+Chỉ kiểm tra upstream (không start proxy):
 
 ```bash
-curl -i http://127.0.0.1:8080/healthz
-curl -i http://127.0.0.1:8080/
-# nếu upstream có path cụ thể:
-curl -i http://127.0.0.1:8080/config.html
+./scripts/reconnect-internal.sh --check-only
 ```
 
+Script sẽ:
+1. Load `.env` (tạo từ `.env.internal.example` nếu thiếu)
+2. Kiểm tra kết nối tới từng upstream
+3. Build + start proxy nội bộ
+
+Nếu upstream báo timeout: máy bạn cần cùng mạng LAN/VPN với IP đích.
 ## 4) Nhiều upstream
 
 Trong `.env`:

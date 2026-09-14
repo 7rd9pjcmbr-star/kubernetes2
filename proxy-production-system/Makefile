@@ -7,7 +7,7 @@ DIST_DIR := dist
 RELEASE_NAME := proxy-$(VERSION)-linux-amd64
 LDFLAGS := -X 'proxy-production-system/internal/buildinfo.Version=$(VERSION)' -X 'proxy-production-system/internal/buildinfo.Commit=$(COMMIT)' -X 'proxy-production-system/internal/buildinfo.BuildDate=$(BUILD_DATE)'
 
-.PHONY: test test-race vet fmt-check build run quality security-test package release-ready eval eval-stack preflight run-internal clean
+.PHONY: test test-race vet fmt-check build run quality security-test package release-ready eval eval-stack preflight run-internal reconnect-internal clean
 
 test:
 	$(GO) test ./...
@@ -70,6 +70,9 @@ preflight:
 
 run-internal:
 	./scripts/run-internal-proxy.sh
+
+reconnect-internal:
+	./scripts/reconnect-internal.sh
 
 clean:
 	@rm -rf $(BIN) bin/eval-upstream $(DIST_DIR)

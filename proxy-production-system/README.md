@@ -81,7 +81,7 @@ Chi tiết: `docs/preflight-test.md`
 
 ```bash
 cp .env.internal.example .env
-./scripts/run-internal-proxy.sh
+./scripts/reconnect-internal.sh
 ```
 
 Chi tiết: `docs/internal-upstream.md`
