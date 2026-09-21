@@ -96,6 +96,17 @@ player-session-shop123:change-me
 
 Client dùng username `player-session-shop123` sẽ giữ cùng exit IP trong `PROXY_STICKY_TTL`.
 
+**DataImpulse (residential VN)** — một dòng `PROXY_POOL`, tắt file demo:
+
+```bash
+cp .env.example .env
+# Sửa PROXY_POOL (không commit mật khẩu):
+# http://<login>__cr.vn:<password>@gw.dataimpulse.com:823|residential|VN|elite|50|99
+# PROXY_POOL_FILES=
+```
+
+IP sticky phía DataImpulse: thêm `;sessid.<shop>` vào username upstream (ví dụ `login__cr.vn;sessid.shop1`) hoặc dùng port sticky theo tài liệu nhà cung cấp. Gateway sticky (`player-session-*`) giữ cùng **node** trong pool local; với một upstream duy nhất, sticky IP exit cần cấu hình sessid ở phía DataImpulse.
+
 **Test nhanh gateway**:
 
 ```bash
