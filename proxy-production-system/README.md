@@ -446,7 +446,30 @@ python3 scripts/platforms_login_sapo.py complete \
 python3 scripts/platforms_login_sapo.py verify-token
 ```
 
-Lưu ý: đây là OAuth App (REST API), không phải login web `accounts.sapo.vn` bằng user/pass. Automation browser cho admin web cần luồng riêng (cookie/V2).
+**Login username:password (SSO merchant hoặc Partner):**
+
+```bash
+# Merchant — email/sđt + mật khẩu accounts.sapo.vn (nhiều shop thì thêm --shop-domain ten-cua-hang)
+python3 scripts/platforms_login_sapo.py password-login \
+  --target merchant \
+  --username 'email@example.com' \
+  --password 'YOUR_PASSWORD' \
+  --shop-domain ten-cua-hang \
+  --cookie-jar /tmp/sapo-merchant-cookies.txt \
+  --print-cookie-header
+
+# Partner — developers.sapo.vn (email Partner, không phải token OAuth App)
+python3 scripts/platforms_login_sapo.py password-login \
+  --target partner \
+  --account-file /path/to/accounts.sapo.txt \
+  --cookie-jar /tmp/sapo-partner-cookies.txt
+```
+
+Giới hạn thực tế:
+
+- Sapo có thể bật **OTP**, **reCAPTCHA**, hoặc chặn IP datacenter → script báo `classification` (`otp_required`, `captcha_required`, `invalid_credentials`).
+- SSO thành công trả **session cookie** (admin web), không thay thế `X-Sapo-Access-Token` REST — với API vẫn nên dùng OAuth App (`auth-url` / `complete`).
+- Không commit mật khẩu; dùng env `SAPO_USERNAME` / `SAPO_PASSWORD` hoặc file local.
 
 ## 13) Pancake OAuth callback helper (lấy code -> đổi token)
 

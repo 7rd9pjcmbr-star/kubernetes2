@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sapo.vn OAuth login automation: authorize URL, callback verify, access token exchange."""
+"""Sapo.vn login automation: OAuth app install, username/password SSO, partner portal."""
 
 from __future__ import annotations
 
@@ -7,14 +7,16 @@ import argparse
 import base64
 import hashlib
 import hmac
+import http.cookiejar
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 DEFAULT_SCOPES = "read_orders,read_products,read_customers,read_content,write_orders"
@@ -24,6 +26,15 @@ ENV_SHOP = "SAPO_SHOP_DOMAIN"
 ENV_REDIRECT = "SAPO_REDIRECT_URI"
 ENV_SCOPES = "SAPO_SCOPES"
 ENV_ACCESS_TOKEN = "SAPO_ACCESS_TOKEN"
+ENV_USERNAME = "SAPO_USERNAME"
+ENV_PASSWORD = "SAPO_PASSWORD"
+
+SSO_LOGIN_BASE = "https://accounts.sapo.vn"
+SSO_WEB_CLIENT_ID = "EzvRnnBPP8"
+DEFAULT_SERVICE_TYPE = "retail"
+DEFAULT_SUFFIX_DOMAIN = "mysapo.net"
+PARTNER_LOGIN_URL = "https://developers.sapo.vn/services/partners/auth/login"
+PARTNER_AUTH_URL = "https://developers.sapo.vn/services/partners/auth"
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,6 +82,49 @@ def parse_args() -> argparse.Namespace:
     verify = sub.add_parser("verify-token", help="Smoke-test an existing SAPO_ACCESS_TOKEN.")
     verify.add_argument("--shop", default="", help="Shop host or slug (default: env SAPO_SHOP_DOMAIN).")
     verify.add_argument("--token", default="", help="Access token (default: env SAPO_ACCESS_TOKEN).")
+
+    pwd = sub.add_parser(
+        "password-login",
+        help="Login with email/phone + password (accounts.sapo.vn SSO or Sapo Partner portal).",
+    )
+    pwd.add_argument(
+        "--target",
+        choices=("merchant", "partner"),
+        default="merchant",
+        help="merchant=accounts.sapo.vn (shop admin SSO); partner=developers.sapo.vn.",
+    )
+    pwd.add_argument("--username", default="", help=f"Email or phone (env {ENV_USERNAME}).")
+    pwd.add_argument("--password", default="", help=f"Password (env {ENV_PASSWORD}).")
+    pwd.add_argument(
+        "--account-file",
+        default="",
+        help="Text file with one line username:password (V2 bulk format).",
+    )
+    pwd.add_argument(
+        "--shop-domain",
+        default="",
+        help="Shop slug/domain when SSO asks for store name (multi-store accounts).",
+    )
+    pwd.add_argument(
+        "--service-type",
+        default=DEFAULT_SERVICE_TYPE,
+        help=f"SSO serviceType query (default: {DEFAULT_SERVICE_TYPE}).",
+    )
+    pwd.add_argument(
+        "--recaptcha-token",
+        default="",
+        help="gRecaptchaResponse if Sapo requires captcha for your IP/account.",
+    )
+    pwd.add_argument(
+        "--cookie-jar",
+        default="",
+        help="Write session cookies (Netscape/Mozilla jar format) for browser/V2 import.",
+    )
+    pwd.add_argument(
+        "--print-cookie-header",
+        action="store_true",
+        help="Print Cookie header string on success (for quick API probes).",
+    )
 
     return parser.parse_args()
 
@@ -399,6 +453,255 @@ def cmd_verify_token(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def load_username_password(args: argparse.Namespace) -> Tuple[str, str]:
+    if args.account_file:
+        with open(args.account_file, "r", encoding="utf-8", errors="ignore") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line or line.startswith("#") or ":" not in line:
+                    continue
+                username, password = line.split(":", 1)
+                username = username.strip()
+                password = password.strip()
+                if username and password:
+                    return username, password
+        raise SystemExit(f"No username:password line found in {args.account_file}")
+
+    username = env_or(ENV_USERNAME, args.username, required=True)
+    password = env_or(ENV_PASSWORD, args.password, required=True)
+    return username, password
+
+
+def build_opener(cookie_jar_path: str = "") -> Tuple[urllib.request.OpenerDirector, http.cookiejar.CookieJar]:
+    if cookie_jar_path:
+        jar: http.cookiejar.CookieJar = http.cookiejar.MozillaCookieJar(cookie_jar_path)
+    else:
+        jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    opener.addheaders = [("User-Agent", "Mozilla/5.0 (compatible; platforms_login_sapo/1.0)")]
+    return opener, jar
+
+
+def fetch_sso_csrf(opener: urllib.request.OpenerDirector, service_type: str) -> str:
+    url = f"{SSO_LOGIN_BASE}/login?serviceType={urllib.parse.quote(service_type)}"
+    with opener.open(url, timeout=30) as resp:
+        html = resp.read().decode("utf-8", errors="ignore")
+    match = re.search(r'csrf-token"\s+content="([^"]+)"', html)
+    if not match:
+        raise SystemExit("Could not read CSRF token from accounts.sapo.vn login page.")
+    return match.group(1)
+
+
+def classify_sso_error(message: str) -> str:
+    lowered = message.lower()
+    if "otp" in lowered or "mã" in lowered:
+        return "otp_required"
+    if "captcha" in lowered or "recaptcha" in lowered:
+        return "captcha_required"
+    if "không chính xác" in lowered or "incorrect" in lowered:
+        return "invalid_credentials"
+    return "login_failed"
+
+
+def login_merchant_sso(
+    opener: urllib.request.OpenerDirector,
+    username: str,
+    password: str,
+    shop_domain: str,
+    service_type: str,
+    recaptcha_token: str,
+    timeout: float,
+) -> Tuple[bool, dict]:
+    csrf = fetch_sso_csrf(opener, service_type)
+    is_email = "@" in username
+    payload: Dict[str, Any] = {
+        "password": password,
+        "clientId": SSO_WEB_CLIENT_ID,
+        "countryCode": "84",
+        "appSource": "WEB",
+        "suffixDomain": DEFAULT_SUFFIX_DOMAIN,
+        "product": service_type,
+        "gRecaptchaResponse": recaptcha_token,
+    }
+    if is_email:
+        payload["email"] = username.strip()
+    else:
+        payload["phoneNumber"] = username.strip()
+
+    shop_domain = shop_domain.strip()
+    if shop_domain:
+        payload["domain"] = shop_domain.replace(".mysapo.net", "").replace(".mysapogo.com", "")
+
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{SSO_LOGIN_BASE}/login",
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-CSRF-TOKEN": csrf,
+        },
+    )
+
+    status = 0
+    raw = ""
+    err: Optional[str] = None
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            status = resp.getcode()
+            raw = resp.read().decode("utf-8", errors="ignore")
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        raw = exc.read().decode("utf-8", errors="ignore")
+    except Exception as exc:  # pragma: no cover - network dependent
+        err = f"{type(exc).__name__}: {exc}"
+
+    meta: dict = {"http_status": status, "transport_error": err}
+    if err:
+        meta["ok"] = False
+        return False, meta
+
+    try:
+        parsed = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        meta["ok"] = False
+        meta["parse_error"] = "non-JSON response"
+        meta["body_preview"] = raw[:400]
+        return False, meta
+
+    meta["response"] = parsed
+    if isinstance(parsed, dict) and parsed.get("error"):
+        message = str(parsed["error"])
+        meta["ok"] = False
+        meta["classification"] = classify_sso_error(message)
+        meta["error"] = message
+        return False, meta
+
+    redirect = None
+    if isinstance(parsed, dict):
+        redirect = parsed.get("redirect") or parsed.get("redirectUrl")
+    meta["ok"] = True
+    meta["redirect"] = redirect
+    return True, meta
+
+
+def login_partner_portal(
+    opener: urllib.request.OpenerDirector,
+    email: str,
+    password: str,
+    timeout: float,
+) -> Tuple[bool, dict]:
+    with opener.open(PARTNER_LOGIN_URL, timeout=timeout) as resp:
+        _ = resp.read()
+
+    form = urllib.parse.urlencode({"Email": email, "Password": password}).encode("utf-8")
+    req = urllib.request.Request(
+        PARTNER_AUTH_URL,
+        data=form,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    status = 0
+    final_url = ""
+    body = ""
+    err: Optional[str] = None
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            status = resp.getcode()
+            final_url = resp.geturl()
+            body = resp.read().decode("utf-8", errors="ignore")
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        final_url = exc.geturl()
+        body = exc.read().decode("utf-8", errors="ignore")
+    except Exception as exc:  # pragma: no cover
+        err = f"{type(exc).__name__}: {exc}"
+
+    meta = {
+        "http_status": status,
+        "final_url": final_url,
+        "transport_error": err,
+    }
+    if err:
+        meta["ok"] = False
+        return False, meta
+
+    login_failed = "field-validation-error" in body or "Thông tin đăng nhập" in body
+    if login_failed and "auth/login" in final_url:
+        meta["ok"] = False
+        meta["classification"] = "invalid_credentials"
+        meta["error"] = "Partner portal rejected email/password (or account pending approval)."
+        return False, meta
+
+    meta["ok"] = True
+    meta["classification"] = "session_established"
+    return True, meta
+
+
+def cookie_header_from_jar(jar: http.cookiejar.CookieJar) -> str:
+    parts = []
+    for cookie in jar:
+        parts.append(f"{cookie.name}={cookie.value}")
+    return "; ".join(parts)
+
+
+def save_cookie_jar(jar: http.cookiejar.CookieJar, path: str) -> None:
+    if isinstance(jar, http.cookiejar.MozillaCookieJar):
+        jar.save(ignore_discard=True, ignore_expires=True)
+        return
+    mozilla = http.cookiejar.MozillaCookieJar(path)
+    for cookie in jar:
+        mozilla.set_cookie(cookie)
+    mozilla.save(ignore_discard=True, ignore_expires=True)
+
+
+def cmd_password_login(args: argparse.Namespace) -> int:
+    username, password = load_username_password(args)
+    cookie_path = args.cookie_jar.strip()
+    opener, jar = build_opener(cookie_path)
+
+    if args.target == "partner":
+        ok, meta = login_partner_portal(opener, username, password, timeout=30.0)
+    else:
+        ok, meta = login_merchant_sso(
+            opener,
+            username,
+            password,
+            shop_domain=args.shop_domain.strip(),
+            service_type=args.service_type.strip() or DEFAULT_SERVICE_TYPE,
+            recaptcha_token=args.recaptcha_token.strip(),
+            timeout=30.0,
+        )
+
+    meta["target"] = args.target
+    meta["username_preview"] = mask_secret(username, keep=3)
+    meta["cookie_count"] = len(list(jar))
+
+    if ok and cookie_path:
+        save_cookie_jar(jar, cookie_path)
+        meta["cookie_jar"] = cookie_path
+
+    if ok and args.print_cookie_header:
+        meta["cookie_header"] = cookie_header_from_jar(jar)
+
+    print(json.dumps(meta, ensure_ascii=False, indent=2))
+
+    if not ok:
+        hint = "Check credentials, shop-domain (multi-store), OTP, or pass --recaptcha-token."
+        if meta.get("classification") == "otp_required":
+            hint = "Account requires OTP login — complete OTP in browser; cookie export is not supported here."
+        if meta.get("classification") == "captcha_required":
+            hint = "Sapo requires reCAPTCHA — solve in browser or pass --recaptcha-token."
+        print(hint, file=sys.stderr)
+        return 1
+
+    if args.target == "merchant" and meta.get("redirect"):
+        print(f"\nOpen redirect URL in browser:\n{meta['redirect']}")
+    return 0
+
+
 def main() -> int:
     args = parse_args()
     if args.command == "auth-url":
@@ -407,6 +710,8 @@ def main() -> int:
         return cmd_complete(args)
     if args.command == "verify-token":
         return cmd_verify_token(args)
+    if args.command == "password-login":
+        return cmd_password_login(args)
     raise SystemExit(f"Unknown command: {args.command}")
 
 
