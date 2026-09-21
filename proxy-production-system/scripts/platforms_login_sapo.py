@@ -691,7 +691,12 @@ def cmd_password_login(args: argparse.Namespace) -> int:
     if not ok:
         hint = "Check credentials, shop-domain (multi-store), OTP, or pass --recaptcha-token."
         if meta.get("classification") == "otp_required":
-            hint = "Account requires OTP login — complete OTP in browser; cookie export is not supported here."
+            hint = (
+                "OTP required by Sapo — password-only automation stopped. "
+                "Use Playwright script with residential VN IP or existing storage-state."
+            )
+            print(hint, file=sys.stderr)
+            return 3
         if meta.get("classification") == "captcha_required":
             hint = "Sapo requires reCAPTCHA — solve in browser or pass --recaptcha-token."
         print(hint, file=sys.stderr)

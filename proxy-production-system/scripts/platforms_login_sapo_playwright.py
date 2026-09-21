@@ -157,6 +157,24 @@ def assert_no_otp(page, *, where: str) -> None:
 
 
 def install_otp_guards(page) -> None:
+    page.add_init_script(
+        """
+        () => {
+          const block = (event) => {
+            const anchor = event.target && event.target.closest ? event.target.closest('a') : null;
+            if (!anchor || !anchor.href) return;
+            const href = anchor.href.toLowerCase();
+            if (href.includes('with-otp') || href.includes('/otp')) {
+              event.preventDefault();
+              event.stopPropagation();
+              console.warn('OTP navigation blocked by platforms_login_sapo_playwright');
+            }
+          };
+          document.addEventListener('click', block, true);
+        }
+        """
+    )
+
     def on_nav(frame) -> None:
         if frame != page.main_frame:
             return
