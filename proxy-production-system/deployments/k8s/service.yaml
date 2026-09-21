@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-system
+  labels:
+    app: proxy-system
+spec:
+  selector:
+    app: proxy-system
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: gateway-http
+      port: 8888
+      targetPort: gateway-http
+    - name: gateway-socks
+      port: 1080
+      targetPort: gateway-socks
+    - name: gateway-admin
+      port: 9090
+      targetPort: gateway-admin
+  type: ClusterIP
