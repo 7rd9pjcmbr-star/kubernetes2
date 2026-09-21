@@ -471,6 +471,24 @@ Giới hạn thực tế:
 - SSO thành công trả **session cookie** (admin web), không thay thế `X-Sapo-Access-Token` REST — với API vẫn nên dùng OAuth App (`auth-url` / `complete`).
 - Không commit mật khẩu; dùng env `SAPO_USERNAME` / `SAPO_PASSWORD` hoặc file local.
 
+**Playwright (browser, nghiêm cấm OTP):** script dừng ngay (exit `3`) nếu URL/UI OTP xuất hiện — không hỗ trợ nhập OTP.
+
+```bash
+pip install -r scripts/requirements-playwright.txt
+python3 -m playwright install chromium
+
+python3 scripts/platforms_login_sapo_playwright.py \
+  --target merchant \
+  --username 'email@example.com' \
+  --password 'YOUR_PASSWORD' \
+  --shop-domain ten-cua-hang \
+  --proxy-server 'http://player:pass@localhost:8888' \
+  --storage-state-out /tmp/sapo-storage.json \
+  --cookie-jar /tmp/sapo-cookies.txt
+```
+
+Giảm rủi ro OTP (không đảm bảo 100% — Sapo quyết định): IP/residential VN, `--storage-state-in` session cũ, không mở `/login/with-otp`, chạy `--headed` trên máy thật.
+
 ## 13) Pancake OAuth callback helper (lấy code -> đổi token)
 
 Script `scripts/pancake_oauth_helper.py` giúp:
