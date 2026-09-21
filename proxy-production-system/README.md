@@ -31,13 +31,40 @@ proxy-production-system/
 │       ├── deployment.yaml
 │       ├── hpa.yaml
 │       └── service.yaml
-└── .env.example
+├── requirements.txt
+├── scripts/load_env.py
+└── .env                 # local only (gitignored, quoted/wrapped values)
 ```
 
-## 2) Chạy local
+## 2) Environment (`.env` bọc, không commit)
+
+Tạo **một file** `proxy-production-system/.env` (gitignored). Giá trị có ký tự đặc biệt (`|`, `@`, `:`) nên **bọc trong dấu nghép kép**:
 
 ```bash
-cp .env.example .env
+ROTATING_PROXY_URL="http://LOGIN__cr.vn:PASSWORD@gw.dataimpulse.com:823"
+PROXY_POOL="http://LOGIN__cr.vn:PASSWORD@gw.dataimpulse.com:823|residential|VN|elite|50|99"
+```
+
+Loader (tránh `source .env` vỡ trên `PROXY_POOL`):
+
+```bash
+make env-check
+eval "$(python3 scripts/load_env.py --shell)"
+# hoặc
+scripts/with_env.sh python3 scripts/check_vn_platform_apis.py
+```
+
+Python scripts Sapo tự `load_env` khi chạy; Playwright **bắt buộc** `ROTATING_PROXY_URL` (proxy dân cư xoay DataImpulse / gateway).
+
+**Python deps:**
+
+```bash
+make python-deps   # pip install -r requirements.txt + playwright chromium
+```
+
+## 3) Chạy local
+
+```bash
 docker compose up --build
 ```
 
@@ -48,7 +75,7 @@ curl -i http://localhost:8080/healthz
 curl -i http://localhost:8080
 ```
 
-## 3) Các biến môi trường
+## 4) Các biến môi trường
 
 | Biến | Bắt buộc | Mặc định | Ý nghĩa |
 |---|---|---|---|
@@ -99,10 +126,7 @@ Client dùng username `player-session-shop123` sẽ giữ cùng exit IP trong `P
 
 **DataImpulse (residential VN)** — seed qua `PROXY_POOL` (hoặc từng dòng trong file `PROXY_POOL_FILES`):
 
-```bash
-cp .env.example .env
-# http://<login>__cr.vn:<password>@gw.dataimpulse.com:823|residential|VN|elite|50|99
-```
+Trong `.env` (bọc ngoặc kép): `ROTATING_PROXY_URL` + `PROXY_POOL` trỏ upstream dân cư xoay.
 
 IP sticky phía DataImpulse: thêm `;sessid.<shop>` vào username upstream (ví dụ `login__cr.vn;sessid.shop1`) hoặc dùng port sticky theo tài liệu nhà cung cấp. Gateway sticky (`player-session-*`) giữ cùng **node** trong pool local; với một upstream duy nhất, sticky IP exit cần cấu hình sessid ở phía DataImpulse.
 
@@ -275,10 +299,7 @@ python3 scripts/check_vn_platform_apis.py --output /tmp/platform-api-report.json
 Chạy thêm authenticated smoke test (đọc token từ biến môi trường):
 
 ```bash
-set -a
-source scripts/.env.vn-platforms.example
-set +a
-python3 scripts/check_vn_platform_apis.py --authenticated
+scripts/with_env.sh python3 scripts/check_vn_platform_apis.py --authenticated
 ```
 
 Yêu cầu fail nếu thiếu credential:
@@ -341,7 +362,7 @@ python3 scripts/daily_pancake_orders_to_telegram.py --force
 Gợi ý cron chạy mỗi ngày lúc 08:00:
 
 ```cron
-0 8 * * * cd /path/to/proxy-production-system && /usr/bin/env bash -lc 'source scripts/.env.vn-platforms.example && python3 scripts/daily_pancake_orders_to_telegram.py'
+0 8 * * * cd /path/to/proxy-production-system && scripts/with_env.sh python3 scripts/daily_pancake_orders_to_telegram.py
 ```
 
 ## 11) Làm sạch dữ liệu account cho V2 (auto-run)
@@ -417,7 +438,7 @@ python3 scripts/clean_accounts_for_v2.py \
 
 Luồng cài App Partner trên shop Sapo (theo [OAuth Sapo](https://support.sapo.vn/oauth)): mở URL cấp quyền → redirect về `redirect_uri` → đổi `code` lấy `access_token` vĩnh viễn.
 
-Biến môi trường (xem `scripts/.env.vn-platforms.example`):
+Biến môi trường (trong `.env` gốc repo, xem `scripts/load_env.py --shell`):
 
 - `SAPO_SHOP_DOMAIN` — slug shop (`ten-cua-hang`) hoặc host `ten-cua-hang.mysapo.net`
 - `SAPO_CLIENT_ID` / `SAPO_CLIENT_SECRET` — API Key & Secret Key của App
@@ -427,8 +448,7 @@ Biến môi trường (xem `scripts/.env.vn-platforms.example`):
 **Bước 1 — URL cài đặt (mở trình duyệt, đăng nhập chủ shop, bấm Install):**
 
 ```bash
-set -a && source scripts/.env.vn-platforms.example && set +a
-python3 scripts/platforms_login_sapo.py auth-url --open-browser
+scripts/with_env.sh python3 scripts/platforms_login_sapo.py auth-url --open-browser
 ```
 
 **Bước 2 — Dán callback sau redirect, verify HMAC, đổi token, test shop:**
@@ -437,7 +457,7 @@ python3 scripts/platforms_login_sapo.py auth-url --open-browser
 python3 scripts/platforms_login_sapo.py complete \
   --callback-url 'https://your-app/callback?code=...&hmac=...&timestamp=...&store=ten-cua-hang.mysapo.net' \
   --exchange --verify-shop \
-  --write-env scripts/.env.vn-platforms.local
+  --write-env /path/to/local.env
 ```
 
 **Kiểm tra token đã lưu:**
@@ -474,20 +494,20 @@ Giới hạn thực tế:
 **Playwright (browser, nghiêm cấm OTP):** script dừng ngay (exit `3`) nếu URL/UI OTP xuất hiện — không hỗ trợ nhập OTP.
 
 ```bash
-pip install -r scripts/requirements-playwright.txt
-python3 -m playwright install chromium
+make python-deps
 
-python3 scripts/platforms_login_sapo_playwright.py \
+scripts/with_env.sh python3 scripts/platforms_login_sapo_playwright.py \
   --target merchant \
   --username 'email@example.com' \
   --password 'YOUR_PASSWORD' \
   --shop-domain ten-cua-hang \
-  --proxy-server 'http://player:pass@localhost:8888' \
   --storage-state-out /tmp/sapo-storage.json \
   --cookie-jar /tmp/sapo-cookies.txt
 ```
 
-Giảm rủi ro OTP (không đảm bảo 100% — Sapo quyết định): IP/residential VN, `--storage-state-in` session cũ, không mở `/login/with-otp`, chạy `--headed` trên máy thật.
+Proxy: mặc định lấy `ROTATING_PROXY_URL` từ `.env` (DataImpulse xoay VN). Override: `--proxy-server`.
+
+Giảm rủi ro OTP (không đảm bảo 100% — Sapo quyết định): residential xoay, `--storage-state-in`, không `/login/with-otp`, `--headed` trên máy thật.
 
 ## 13) Pancake OAuth callback helper (lấy code -> đổi token)
 

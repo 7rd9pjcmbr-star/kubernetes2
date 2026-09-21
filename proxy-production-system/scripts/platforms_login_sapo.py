@@ -16,7 +16,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+from load_env import load_env, rotating_proxy_url  # noqa: E402
 
 
 DEFAULT_SCOPES = "read_orders,read_products,read_customers,read_content,write_orders"
@@ -124,6 +130,12 @@ def parse_args() -> argparse.Namespace:
         "--print-cookie-header",
         action="store_true",
         help="Print Cookie header string on success (for quick API probes).",
+    )
+    pwd.add_argument("--env-file", default="", help="Path to wrapped .env (default: repo root).")
+    pwd.add_argument(
+        "--no-proxy",
+        action="store_true",
+        help="Do not route HTTP login via ROTATING_PROXY_URL.",
     )
 
     return parser.parse_args()
@@ -472,14 +484,30 @@ def load_username_password(args: argparse.Namespace) -> Tuple[str, str]:
     return username, password
 
 
-def build_opener(cookie_jar_path: str = "") -> Tuple[urllib.request.OpenerDirector, http.cookiejar.CookieJar]:
+def build_opener(
+    cookie_jar_path: str = "",
+    proxy_url: str = "",
+) -> Tuple[urllib.request.OpenerDirector, http.cookiejar.CookieJar]:
     if cookie_jar_path:
         jar: http.cookiejar.CookieJar = http.cookiejar.MozillaCookieJar(cookie_jar_path)
     else:
         jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    handlers = [urllib.request.HTTPCookieProcessor(jar)]
+    if proxy_url.strip():
+        handlers.append(
+            urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}),
+        )
+    opener = urllib.request.build_opener(*handlers)
     opener.addheaders = [("User-Agent", "Mozilla/5.0 (compatible; platforms_login_sapo/1.0)")]
     return opener, jar
+
+
+def resolve_rotating_proxy(env_file: str = "") -> str:
+    try:
+        env = load_env(env_file or None, apply=False)
+    except FileNotFoundError:
+        return os.getenv("ROTATING_PROXY_URL", "").strip()
+    return rotating_proxy_url(env)
 
 
 def fetch_sso_csrf(opener: urllib.request.OpenerDirector, service_type: str) -> str:
@@ -660,7 +688,16 @@ def save_cookie_jar(jar: http.cookiejar.CookieJar, path: str) -> None:
 def cmd_password_login(args: argparse.Namespace) -> int:
     username, password = load_username_password(args)
     cookie_path = args.cookie_jar.strip()
-    opener, jar = build_opener(cookie_path)
+    proxy_url = ""
+    if not args.no_proxy:
+        proxy_url = resolve_rotating_proxy(args.env_file)
+        if not proxy_url:
+            print(
+                "Missing ROTATING_PROXY_URL in .env — required for residential proxy.",
+                file=sys.stderr,
+            )
+            return 2
+    opener, jar = build_opener(cookie_path, proxy_url=proxy_url)
 
     if args.target == "partner":
         ok, meta = login_partner_portal(opener, username, password, timeout=30.0)

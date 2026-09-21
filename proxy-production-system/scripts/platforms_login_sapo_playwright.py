@@ -8,7 +8,13 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+from load_env import load_env, rotating_proxy_url  # noqa: E402
 
 EXIT_OTP_FORBIDDEN = 3
 
@@ -71,7 +77,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--proxy-server",
         default="",
-        help="Proxy for browser, e.g. http://user:pass@host:8888 (residential VN recommended).",
+        help="Browser proxy (default: ROTATING_PROXY_URL from wrapped .env).",
+    )
+    parser.add_argument(
+        "--env-file",
+        default="",
+        help="Path to .env (default: repo root .env).",
     )
     parser.add_argument(
         "--storage-state-in",
@@ -305,26 +316,42 @@ def export_cookies(context, cookie_jar_path: str) -> None:
     mozilla.save(ignore_discard=True, ignore_expires=True)
 
 
+def resolve_browser_proxy(args: argparse.Namespace) -> str:
+    if args.proxy_server.strip():
+        return args.proxy_server.strip()
+    try:
+        env = load_env(args.env_file or None, apply=True)
+    except FileNotFoundError as exc:
+        raise SystemExit(str(exc)) from exc
+    proxy = rotating_proxy_url(env)
+    if not proxy:
+        raise SystemExit(
+            "Missing ROTATING_PROXY_URL in .env (required for residential rotating proxy)."
+        )
+    return proxy
+
+
 def run(args: argparse.Namespace) -> Dict[str, Any]:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise SystemExit(
-            "Playwright not installed. Run: pip install -r scripts/requirements-playwright.txt "
+            "Playwright not installed. Run: pip install -r requirements.txt "
             "&& python3 -m playwright install chromium"
         ) from exc
 
+    proxy_server = resolve_browser_proxy(args)
     username, password = load_credentials(args)
     report: Dict[str, Any] = {
         "target": args.target,
         "username_preview": mask(username),
         "headless": args.headless,
         "otp_policy": "forbidden",
+        "proxy_server": mask(proxy_server.split("@")[-1] if "@" in proxy_server else proxy_server),
     }
 
     launch_kwargs: Dict[str, Any] = {"headless": args.headless, "slow_mo": args.slowmo_ms}
-    if args.proxy_server.strip():
-        launch_kwargs["proxy"] = {"server": args.proxy_server.strip()}
+    launch_kwargs["proxy"] = {"server": proxy_server}
 
     context_kwargs: Dict[str, Any] = {
         "locale": "vi-VN",

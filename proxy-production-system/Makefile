@@ -2,7 +2,14 @@ BIN := bin/proxy
 BOT_BIN := bin/tondaithanh-bot
 GO := GOWORK=off go
 
-.PHONY: test build build-bot run run-bot
+.PHONY: test build build-bot run run-bot python-deps env-check
+
+python-deps:
+	python3 -m pip install -r requirements.txt
+	python3 -m playwright install chromium
+
+env-check:
+	python3 scripts/load_env.py --check
 
 test:
 	$(GO) test ./...

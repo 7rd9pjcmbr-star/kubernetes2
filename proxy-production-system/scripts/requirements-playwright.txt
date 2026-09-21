@@ -1,2 +1,0 @@
-# Optional — Sapo browser login (scripts/platforms_login_sapo_playwright.py)
-playwright>=1.42.0
