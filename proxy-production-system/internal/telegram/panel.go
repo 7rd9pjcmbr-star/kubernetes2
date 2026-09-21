@@ -85,3 +85,15 @@ func listPageKeyboard(page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
+func replyMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	return tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🎛 Bảng điều khiển"),
+			tgbotapi.NewKeyboardButton("📊 Thống kê"),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("📋 Danh sách"),
+			tgbotapi.NewKeyboardButton("📁 150 Proxy"),
+		),
+	)
+}

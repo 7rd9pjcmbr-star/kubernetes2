@@ -31,26 +31,17 @@ func (b *Bot) sendPanel(chatID int64, text string, keyboard tgbotapi.InlineKeybo
 	}
 }
 
-func (b *Bot) showPanel(chatID int64) {
-	text := mainPanelText() + "\n\n_👇 Dùng menu bàn phím nhanh bên dưới ô chat_"
-	b.sendPanel(chatID, text, mainPanelKeyboard())
-	b.ensureQuickMenu(chatID)
-}
-
-func (b *Bot) ensureQuickMenu(chatID int64) {
-	menu := replyMenuKeyboard()
-	msg := tgbotapi.NewMessage(chatID, "⌨️ Menu nhanh đã sẵn sàng — chọn nút bên dưới.")
-	msg.ReplyMarkup = menu
+func (b *Bot) sendPanelWithReply(chatID int64, text string, inline tgbotapi.InlineKeyboardMarkup, reply tgbotapi.ReplyKeyboardMarkup) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = tgbotapi.ModeMarkdown
+	msg.ReplyMarkup = inline
 	if _, err := b.api.Send(msg); err != nil {
-		log.Printf("telegram quick menu failed chat=%d err=%v", chatID, err)
+		log.Printf("telegram panel send failed chat=%d err=%v", chatID, err)
 	}
-}
-
-func (b *Bot) hideQuickMenu(chatID int64) {
-	msg := tgbotapi.NewMessage(chatID, "Đã ẩn menu bàn phím. Gõ /panel để mở lại.")
-	msg.ReplyMarkup = removeMenuKeyboard()
-	if _, err := b.api.Send(msg); err != nil {
-		log.Printf("telegram hide menu failed chat=%d err=%v", chatID, err)
+	replyMsg := tgbotapi.NewMessage(chatID, "👇 Menu nhanh — chọn nút hoặc dùng bảng inline phía trên")
+	replyMsg.ReplyMarkup = reply
+	if _, err := b.api.Send(replyMsg); err != nil {
+		log.Printf("telegram reply keyboard failed chat=%d err=%v", chatID, err)
 	}
 }
 
@@ -73,9 +64,8 @@ func (b *Bot) answerCallback(callbackID, text string) {
 
 func (b *Bot) setupCommands() {
 	commands := tgbotapi.NewSetMyCommands(
-		tgbotapi.BotCommand{Command: "start", Description: "Mở bảng điều khiển + menu nhanh"},
+		tgbotapi.BotCommand{Command: "start", Description: "Mở bảng điều khiển"},
 		tgbotapi.BotCommand{Command: "panel", Description: "Bảng điều khiển proxy"},
-		tgbotapi.BotCommand{Command: "menu", Description: "Hiện menu bàn phím nhanh"},
 		tgbotapi.BotCommand{Command: "stats", Description: "Thống kê pool"},
 		tgbotapi.BotCommand{Command: "list", Description: "Danh sách backend"},
 		tgbotapi.BotCommand{Command: "help", Description: "Trợ giúp"},

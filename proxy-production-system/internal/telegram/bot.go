@@ -106,29 +106,21 @@ func (b *Bot) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	}
 
 	switch {
-	case text == "/start" || text == "/panel" || text == btnPanel:
+	case text == "/start" || text == "/panel" || text == "🎛 Bảng điều khiển":
 		b.showPanel(message.Chat.ID)
-	case text == "/menu":
-		b.ensureQuickMenu(message.Chat.ID)
-	case text == btnHideMenu:
-		b.hideQuickMenu(message.Chat.ID)
-	case text == btnHelp || text == "/help":
+	case text == "/help":
 		b.sendPanel(message.Chat.ID, helpText(), backHomeKeyboard())
-	case text == btnStats || text == "/stats":
+	case text == "📊 Thống kê" || text == "/stats":
 		b.sendPanel(message.Chat.ID, b.statsText(ctx), backHomeKeyboard())
-	case text == btnList || text == "/list":
+	case text == "📋 Danh sách" || text == "/list":
 		body, keyboard := b.listPage(ctx, 0)
 		b.sendPanel(message.Chat.ID, body, keyboard)
-	case text == btnPoolFiles || text == "/poolfiles":
+	case text == "📁 150 Proxy" || text == "/poolfiles":
 		b.sendPanel(message.Chat.ID, b.poolFilesText(), backHomeKeyboard())
-	case text == btnDead:
-		b.sendPanel(message.Chat.ID, b.deadBackendsText(ctx), backHomeKeyboard())
-	case text == btnSubscribe || text == "/subscribe":
+	case text == "/subscribe":
 		b.handleSubscribe(ctx, message)
-		b.ensureQuickMenu(message.Chat.ID)
-	case text == btnUnsubscribe || text == "/unsubscribe":
+	case text == "/unsubscribe":
 		b.handleUnsubscribe(ctx, message)
-		b.ensureQuickMenu(message.Chat.ID)
 	case strings.HasPrefix(text, "/add "):
 		b.handleAdd(ctx, message.Chat.ID, strings.TrimPrefix(text, "/add "))
 	case strings.HasPrefix(text, "/del "):
@@ -136,8 +128,7 @@ func (b *Bot) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	case strings.HasPrefix(text, "/status "):
 		b.handleSetStatus(ctx, message.Chat.ID, strings.TrimPrefix(text, "/status "))
 	default:
-		b.reply(message.Chat.ID, "Lệnh không hợp lệ. Bấm *🎛 Bảng điều khiển* hoặc gõ /panel.")
-		b.ensureQuickMenu(message.Chat.ID)
+		b.reply(message.Chat.ID, "Lenh khong hop le. Go /panel de mo bang dieu khien.")
 	}
 }
 
@@ -156,7 +147,6 @@ func (b *Bot) authorizedChat(chatID int64) bool {
 func (b *Bot) reply(chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = tgbotapi.ModeMarkdown
-	msg.ReplyMarkup = replyMenuKeyboard()
 	if _, err := b.api.Send(msg); err != nil {
 		log.Printf("telegram send failed chat=%d err=%v", chatID, err)
 	}
@@ -177,15 +167,16 @@ func helpText() string {
 	return strings.TrimSpace(`
 *❓ Trợ giúp @TondaithanhBot*
 
-*Menu bàn phím nhanh* — các nút dưới ô chat
-/panel — bảng điều khiển inline
-/menu — hiện lại menu bàn phím
+/panel — mở bảng điều khiển (nút bấm)
 /stats — thống kê pool MongoDB
 /list — danh sách backend (phân trang)
+/poolfiles — 150 proxy trong 2 file
 
 *Lệnh nâng cao:*
 /add ip port type country
 /del id
 /status id active|dead|testing
+/subscribe — bật cảnh báo dead
+/unsubscribe — tắt cảnh báo
 `)
 }

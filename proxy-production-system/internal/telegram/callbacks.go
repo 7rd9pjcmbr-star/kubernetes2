@@ -187,3 +187,8 @@ func (b *Bot) listPage(ctx context.Context, page int) (string, tgbotapi.InlineKe
 	return strings.Join(lines, "\n"), listPageKeyboard(page, totalPages)
 }
 
+func (b *Bot) showPanel(chatID int64) {
+	menu := replyMenuKeyboard()
+	menu.ResizeKeyboard = true
+	b.sendPanelWithReply(chatID, mainPanelText(), mainPanelKeyboard(), menu)
+}
