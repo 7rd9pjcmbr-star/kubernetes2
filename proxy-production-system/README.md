@@ -52,7 +52,8 @@ curl -i http://localhost:8080
 
 | Biến | Bắt buộc | Mặc định | Ý nghĩa |
 |---|---|---|---|
-| `PROXY_UPSTREAMS` | Có | - | Danh sách upstream dạng CSV (`http://a:8081,http://b:8082`) |
+| `PROXY_UPSTREAMS` | Có (nếu tắt gateway) | _(placeholder nội bộ khi bật gateway)_ | Upstream cho reverse proxy `:8080` |
+| `PROXY_POOL_FILES` | Không | _(trống)_ | File text, mỗi dòng một entry cùng format `PROXY_POOL` |
 | `PROXY_STATIC_ROOT` | Không | _(trống)_ | Thư mục static root để bật route UI (`/v2`, `/v3`) |
 | `PROXY_LISTEN_ADDRESS` | Không | `:8080` | Địa chỉ listen của proxy |
 | `PROXY_READ_TIMEOUT` | Không | `15s` | Read timeout cho HTTP server |
@@ -412,7 +413,42 @@ python3 scripts/clean_accounts_for_v2.py \
   --v2-command "/home/ubuntu/run_v2.sh"
 ```
 
-## 12) Pancake OAuth callback helper (lấy code -> đổi token)
+## 12) Sapo OAuth login automation (`platforms_login_sapo.py`)
+
+Luồng cài App Partner trên shop Sapo (theo [OAuth Sapo](https://support.sapo.vn/oauth)): mở URL cấp quyền → redirect về `redirect_uri` → đổi `code` lấy `access_token` vĩnh viễn.
+
+Biến môi trường (xem `scripts/.env.vn-platforms.example`):
+
+- `SAPO_SHOP_DOMAIN` — slug shop (`ten-cua-hang`) hoặc host `ten-cua-hang.mysapo.net`
+- `SAPO_CLIENT_ID` / `SAPO_CLIENT_SECRET` — API Key & Secret Key của App
+- `SAPO_REDIRECT_URI` — URL redirect đã đăng ký trên App
+- `SAPO_SCOPES` — tuỳ chọn, mặc định đọc/ghi đơn + sản phẩm + khách
+
+**Bước 1 — URL cài đặt (mở trình duyệt, đăng nhập chủ shop, bấm Install):**
+
+```bash
+set -a && source scripts/.env.vn-platforms.example && set +a
+python3 scripts/platforms_login_sapo.py auth-url --open-browser
+```
+
+**Bước 2 — Dán callback sau redirect, verify HMAC, đổi token, test shop:**
+
+```bash
+python3 scripts/platforms_login_sapo.py complete \
+  --callback-url 'https://your-app/callback?code=...&hmac=...&timestamp=...&store=ten-cua-hang.mysapo.net' \
+  --exchange --verify-shop \
+  --write-env scripts/.env.vn-platforms.local
+```
+
+**Kiểm tra token đã lưu:**
+
+```bash
+python3 scripts/platforms_login_sapo.py verify-token
+```
+
+Lưu ý: đây là OAuth App (REST API), không phải login web `accounts.sapo.vn` bằng user/pass. Automation browser cho admin web cần luồng riêng (cookie/V2).
+
+## 13) Pancake OAuth callback helper (lấy code -> đổi token)
 
 Script `scripts/pancake_oauth_helper.py` giúp:
 - parse callback URL sau khi login OAuth
@@ -429,7 +465,7 @@ python3 scripts/pancake_oauth_helper.py \
   --require-pos-login
 ```
 
-## 13) TikTok Seller URL helper (decode state -> mapping V2)
+## 14) TikTok Seller URL helper (decode state -> mapping V2)
 
 Script `scripts/tiktok_seller_url_helper.py`:
 - parse URL từ Seller Center
@@ -443,7 +479,7 @@ python3 scripts/tiktok_seller_url_helper.py \
   --url 'https://seller-vn.tiktok.com/services/market/service-detail/...&state=BASE64...'
 ```
 
-## 14) Sanitize JSON hồ sơ trước khi đưa vào V2
+## 15) Sanitize JSON hồ sơ trước khi đưa vào V2
 
 Script `scripts/sanitize_profile_json.py`:
 - ẩn/mask trường nhạy cảm (password, token, email, phone, ip, ...)
@@ -467,7 +503,7 @@ python3 scripts/sanitize_profile_json.py \
   --output-file /tmp/profile.sanitized.json
 ```
 
-## 15) Build credentials cho order scanner
+## 16) Build credentials cho order scanner
 
 Script `scripts/build_scanner_credentials.py` tạo các file `.json` credentials từ
 `/tmp/v2-cleaned/latest/v2_bulk_accounts_<platform>.txt` để scanner có input.
