@@ -93,6 +93,7 @@ curl -i http://localhost:8080
 | Biến | Bắt buộc | Mặc định | Ý nghĩa |
 |---|---|---|---|
 | `PROXY_GATEWAY_ENABLED` | Không | `false` (auto `true` nếu có `PROXY_POOL`) | Bật gateway forward proxy |
+| `ROTATING_PROXY_URL` | Có (Python/Playwright) | _(derive từ `PROXY_POOL` nếu trống)_ | Proxy HTTP dân cư xoay (DataImpulse) cho script login |
 | `PROXY_POOL` | Có (khi bật gateway) | - | CSV entry dạng `url\|kind\|region` |
 | `PROXY_GATEWAY_HTTP_ADDRESS` | Không | `:8888` | HTTP/HTTPS proxy listen |
 | `PROXY_GATEWAY_SOCKS_ADDRESS` | Không | `:1080` | SOCKS5 proxy listen |
