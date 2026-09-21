@@ -15,10 +15,6 @@ services:
       - "9090:9090"
     depends_on:
       - mongo
-      - echo-a
-      - echo-b
-      - upstream-a
-      - upstream-b
 
   tondaithanh-bot:
     build:
@@ -39,22 +35,6 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
-
-  echo-a:
-    image: hashicorp/http-echo:latest
-    command: ["-listen=:8081", "-text=echo-a"]
-
-  echo-b:
-    image: hashicorp/http-echo:latest
-    command: ["-listen=:8082", "-text=echo-b"]
-
-  upstream-a:
-    image: dperson/tinyproxy:latest
-    command: -p 3128
-
-  upstream-b:
-    image: dperson/tinyproxy:latest
-    command: -p 3128
 
 volumes:
   mongo_data:

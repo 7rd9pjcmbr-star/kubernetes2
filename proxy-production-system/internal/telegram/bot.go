@@ -115,8 +115,6 @@ func (b *Bot) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	case text == "📋 Danh sách" || text == "/list":
 		body, keyboard := b.listPage(ctx, 0)
 		b.sendPanel(message.Chat.ID, body, keyboard)
-	case text == "📁 150 Proxy" || text == "/poolfiles":
-		b.sendPanel(message.Chat.ID, b.poolFilesText(), backHomeKeyboard())
 	case text == "/subscribe":
 		b.handleSubscribe(ctx, message)
 	case text == "/unsubscribe":
@@ -170,7 +168,6 @@ func helpText() string {
 /panel — mở bảng điều khiển (nút bấm)
 /stats — thống kê pool MongoDB
 /list — danh sách backend (phân trang)
-/poolfiles — 150 proxy trong 2 file
 
 *Lệnh nâng cao:*
 /add ip port type country

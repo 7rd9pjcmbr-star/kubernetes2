@@ -44,9 +44,6 @@ func (b *Bot) handleCallback(ctx context.Context, query *tgbotapi.CallbackQuery)
 	case data == callbackStats:
 		text := b.statsText(ctx)
 		b.editPanel(chatID, query.Message.MessageID, text, backHomeKeyboard())
-	case data == callbackPoolFiles:
-		text := b.poolFilesText()
-		b.editPanel(chatID, query.Message.MessageID, text, backHomeKeyboard())
 	case data == callbackSubscribe:
 		b.handleSubscribeCallback(ctx, query)
 	case data == callbackUnsub:
@@ -109,25 +106,6 @@ func (b *Bot) statsText(ctx context.Context) string {
 	return fmt.Sprintf(
 		"*📊 Thống kê pool*\n\nTotal: *%d*\n✅ Active: *%d*\n🔄 Testing: *%d*\n☠️ Dead: *%d*\n⚡ Avg latency: *%dms*",
 		len(backends), active, testing, dead, avgLatency,
-	)
-}
-
-func (b *Bot) poolFilesText() string {
-	const (
-		hcmFile = "data/proxy-pool-vn-hcm.txt"
-		hnFile  = "data/proxy-pool-vn-hn.txt"
-	)
-	hcmCount, err := countPoolFileLines(hcmFile)
-	if err != nil {
-		return fmt.Sprintf("Lỗi đọc %s: %v", hcmFile, err)
-	}
-	hnCount, err := countPoolFileLines(hnFile)
-	if err != nil {
-		return fmt.Sprintf("Lỗi đọc %s: %v", hnFile, err)
-	}
-	return fmt.Sprintf(
-		"*📁 Proxy pool files*\n\n🇻🇳 HCM (4G): *%d*\n🇻🇳 HN (residential): *%d*\n\n📦 Tổng: *%d* proxy",
-		hcmCount, hnCount, hcmCount+hnCount,
 	)
 }
 

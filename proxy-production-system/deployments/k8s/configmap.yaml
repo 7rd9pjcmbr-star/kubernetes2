@@ -4,14 +4,15 @@ metadata:
   name: proxy-system-config
 data:
   PROXY_LISTEN_ADDRESS: ":8080"
-  PROXY_UPSTREAMS: "http://upstream-api.default.svc.cluster.local:8080"
+  PROXY_UPSTREAMS: ""
   PROXY_STATIC_ROOT: "/static"
   PROXY_READ_TIMEOUT: "15s"
   PROXY_WRITE_TIMEOUT: "15s"
   PROXY_IDLE_TIMEOUT: "60s"
   PROXY_SHUTDOWN_TIMEOUT: "20s"
   PROXY_GATEWAY_ENABLED: "true"
-  PROXY_POOL: "http://upstream-4g.default.svc.cluster.local:3128|4g|VN-HCM,http://upstream-resi.default.svc.cluster.local:3128|residential|VN-HN"
+  PROXY_POOL: ""
+  PROXY_POOL_FILES: ""
   PROXY_GATEWAY_HTTP_ADDRESS: ":8888"
   PROXY_GATEWAY_SOCKS_ADDRESS: ":1080"
   PROXY_GATEWAY_ADMIN_ADDRESS: ":9090"

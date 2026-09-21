@@ -26,7 +26,6 @@ const (
 	callbackHome       = "panel:home"
 	callbackStats      = "panel:stats"
 	callbackList       = "panel:list:"
-	callbackPoolFiles  = "panel:poolfiles"
 	callbackSubscribe  = "panel:subscribe"
 	callbackUnsub      = "panel:unsub"
 	callbackDead       = "panel:dead"
@@ -36,7 +35,7 @@ const (
 
 func mainPanelText() string {
 	return "*🎛 Bảng điều khiển @TondaithanhBot*\n\n" +
-		"Quản lý 150 proxy (MongoDB) — chọn nút bên dưới:"
+		"Quản lý pool proxy (MongoDB) — chọn nút bên dưới:"
 }
 
 func mainPanelKeyboard() tgbotapi.InlineKeyboardMarkup {
@@ -46,7 +45,6 @@ func mainPanelKeyboard() tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("📋 Danh sách", callbackList+"0"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📁 150 Proxy files", callbackPoolFiles),
 			tgbotapi.NewInlineKeyboardButtonData("☠️ Node dead", callbackDead),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -93,7 +91,6 @@ func replyMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton("📋 Danh sách"),
-			tgbotapi.NewKeyboardButton("📁 150 Proxy"),
 		),
 	)
 }

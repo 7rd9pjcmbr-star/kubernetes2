@@ -1,6 +1,6 @@
 # Proxy Production System
 
-Scaffold dự án proxy production-ready ở mức nền tảng:
+Hệ thống proxy production-ready:
 
 - Reverse proxy round-robin nhiều upstream.
 - **Gateway proxy kiểu dân chơi VN**: HTTP + SOCKS5, xoay IP, sticky session, auth, whitelist IP.
@@ -96,13 +96,11 @@ player-session-shop123:change-me
 
 Client dùng username `player-session-shop123` sẽ giữ cùng exit IP trong `PROXY_STICKY_TTL`.
 
-**DataImpulse (residential VN)** — một dòng `PROXY_POOL`, tắt file demo:
+**DataImpulse (residential VN)** — seed qua `PROXY_POOL` (hoặc từng dòng trong file `PROXY_POOL_FILES`):
 
 ```bash
 cp .env.example .env
-# Sửa PROXY_POOL (không commit mật khẩu):
 # http://<login>__cr.vn:<password>@gw.dataimpulse.com:823|residential|VN|elite|50|99
-# PROXY_POOL_FILES=
 ```
 
 IP sticky phía DataImpulse: thêm `;sessid.<shop>` vào username upstream (ví dụ `login__cr.vn;sessid.shop1`) hoặc dùng port sticky theo tài liệu nhà cung cấp. Gateway sticky (`player-session-*`) giữ cùng **node** trong pool local; với một upstream duy nhất, sticky IP exit cần cấu hình sessid ở phía DataImpulse.
@@ -191,8 +189,7 @@ MONGO_URI=mongodb://mongo:27017
 Gửi `/start` hoặc `/panel` để mở bảng nút bấm:
 
 - 📊 Thống kê — active/dead/testing/latency
-- 📋 Danh sách — phân trang 8 backend/trang (150 proxy)
-- 📁 150 Proxy files — đếm 2 file HCM/HN
+- 📋 Danh sách — phân trang 8 backend/trang
 - ☠️ Node dead — liệt kê backend lỗi
 - 🔔/🔕 Subscribe cảnh báo
 
